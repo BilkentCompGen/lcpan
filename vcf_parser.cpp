@@ -1,16 +1,8 @@
 #include <iostream>
 #include <fstream>
-#include <string>
-#include <vector>
 #include <sstream>
 
-struct variation {
-    std::string chromosom;
-    int pos;
-    std::string id;
-    std::string ref;
-    std::string alt;
-};
+#include "vcf_parser.h"
 
 bool read_vcf(const std::string& file_name, std::vector<variation*>& variation_list) {
     std::ifstream vcf_file(file_name);

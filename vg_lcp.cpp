@@ -37,6 +37,7 @@
 
 
 #include <string.h>
+#include <sstream>
 #include <iostream>
 #include <vector>
 #include <unordered_set>
@@ -45,8 +46,8 @@
 #include <unistd.h>
 
 #include "lps.h"
-#include "fasta_reader.cpp"
-#include "vcf_parser.cpp"
+#include "fasta_reader.h"
+#include "vcf_parser.h"
 
 #define MIN(a,b) (((a)<(b))?(a):(b))
 #define MAX(a,b) (((a)>(b))?(a):(b))
@@ -117,7 +118,7 @@ class sequence_graph {
  */
 std::string core_to_seq(std::string core) {
     std::string seq = "";
-    for (int i = 0; i < core.size() - 1; i += 2) {
+    for (int i = 0; i < (int) (core.size() - 1); i += 2) {
         std::string char_rep = core.substr(i, 2);
         if (char_rep.compare("00") == 0) {
             seq += "A";
@@ -147,7 +148,7 @@ int calculate_offset(int n) {
  * @param visited A set to track visited nodes.
  * @param in_bubble Indicates if the traversal is within a bubble structure.
  */
-void dfs(core_node* node, std::unordered_set<core_node*>& visited, bool in_bubble) {
+void dfs(core_node* node, std::unordered_set<core_node*>& visited) {
     if (node == nullptr || visited.count(node)) {
         return;
     }
@@ -164,7 +165,7 @@ void dfs(core_node* node, std::unordered_set<core_node*>& visited, bool in_bubbl
 
     if (node->id.at(0) == 'o') ref_path += (node->id + "+, ");
 
-    for (int i = 0; i < node->next.size(); i++) {
+    for (int i = 0; i < (int) (node->next.size()); i++) {
 
         g_link* lnk = new g_link();
         lnk->source = node->id;
@@ -178,27 +179,27 @@ void dfs(core_node* node, std::unordered_set<core_node*>& visited, bool in_bubbl
         core_node* next_node = node->next.at(i);
         if (node->id.at(0) == 'b' && node->next.at(i)->id.at(0) == 'o') {
             std::cout << node->core_value << ":" << node->id << ":";
-            for (int i = 0; i < node->next.size(); i++) {
+            for (int i = 0; i < (int) (node->next.size()); i++) {
                 std::cout << node->next.at(i)->id << ", ";
             }
             std::cout << "\n";
             continue;
         } else if (node->id.at(0) == 'o' && node->next.at(i)->id.at(0) == 'b') {
             std::cout << node->core_value << ":" << node->id << ":";
-            for (int i = 0; i < node->next.size(); i++) {
+            for (int i = 0; i < (int) (node->next.size()); i++) {
                 std::cout << node->next.at(i)->id << ", ";
             }
             std::cout << "\n";
-            dfs(next_node, visited, true);
+            dfs(next_node, visited);
         } else if (node->id.at(0) == 'o' && node->next.at(i)->id.at(0) == 'o') {
-            dfs(next_node, visited, false);
+            dfs(next_node, visited);
         } else {
             std::cout << node->core_value << ":" << node->id << ":";
-            for (int i = 0; i < node->next.size(); i++) {
+            for (int i = 0; i < (int) (node->next.size()); i++) {
                 std::cout << node->next.at(i)->id << ", ";
             }
             std::cout << "\n";
-            dfs(next_node, visited, true);
+            dfs(next_node, visited);
         }
     }
 }
@@ -207,18 +208,18 @@ void dfs(core_node* node, std::unordered_set<core_node*>& visited, bool in_bubbl
  * @brief Prints the sequence graph and writes it in rGFA format.
  * @param graph The sequence graph to be printed.
  */
-void print_seq(sequence_graph& graph) {
+void print_seq(sequence_graph& graph, std::string rgfa_path) {
     std::unordered_set<core_node*> visited;
 
     std::cout << "\n********************************************\n" << std::endl;
 
     if (graph.head != nullptr) {
-        dfs(graph.head, visited, false);
+        dfs(graph.head, visited);
     }
 
     std::cout << "\n\n********************************************\n" << std::endl;
 
-    std::ofstream out_file("rGFA.gfa");
+    std::ofstream out_file(rgfa_path);
     for (segment* s : segments) {
         out_file<< "S\t" << s->seg_name << "\t" << s->core;
         out_file << std::endl;
@@ -255,12 +256,10 @@ int* find_boundaries(int start_loc, int end_loc, sequence_graph& sg) {
 
     // traverse to find the starting core
     core_node* curr_start = sg.head;
-    core_node* prev_start = sg.head;
 
     std::cout << "END: " << curr_start->core_value->end << std::endl;
 
-    while (curr_start->core_value->end < start_loc) {
-        prev_start = curr_start;
+    while ((int) (curr_start->core_value->end) < start_loc) {
         curr_start = curr_start->next.at(0);
         start_core_number++;
     }
@@ -271,7 +270,7 @@ int* find_boundaries(int start_loc, int end_loc, sequence_graph& sg) {
     end_core_number = start_core_number - 1;
 
     bool end_case = false;
-    while (curr_end->core_value->start <= end_loc) {
+    while ((int) (curr_end->core_value->start) <= end_loc && !end_case) {
         if (curr_end->end_flag) {
             end_case = true;
             break;
@@ -321,7 +320,7 @@ core_node* align_variation(core_node* starting_core, lcp::lps* var_str,
 
     curr = prev_start->next.at(0);
 
-    while (curr != nullptr && !curr->end_flag && first_difference < var_str->cores->size() && 
+    while (curr != nullptr && !curr->end_flag && first_difference < (int) (var_str->cores->size()) && 
         curr->core_value->label == var_str->cores->at(first_difference).label) {
 
         first_difference++;
@@ -332,7 +331,7 @@ core_node* align_variation(core_node* starting_core, lcp::lps* var_str,
             curr = nullptr;
     }
 
-    if (first_difference == var_str->cores->size() && 
+    if (first_difference == (int) (var_str->cores->size()) && 
         first_difference == (end_core_in_org - strt_core_in_org + 1)) return starting_core; // No changes in the cores
 
     // create stacks with enough spaces for the original and the varaited sequences
@@ -353,7 +352,7 @@ core_node* align_variation(core_node* starting_core, lcp::lps* var_str,
             curr = curr->next.at(0);
     }
 
-    for (int i = 0; i < var_str->cores->size(); i++) {
+    for (int i = 0; i < (int) (var_str->cores->size()); i++) {
         core_node* new_cn = new core_node();
         new_cn->core_value = &var_str->cores->at(i);
         variated_stack[variated_stack_size++] = new_cn;
@@ -581,7 +580,7 @@ int main(int argc, char* argv[]) {
         }
     }
 
-    print_seq(sg);
+    print_seq(sg, rgfa_path);
 
     core_node* curr = sg.head;
 

@@ -1,6 +1,7 @@
 #include <iostream>
 #include <fstream>
-#include <string>
+
+#include "fasta_reader.h"
 
 bool read_fasta(const std::string& file_name, std::string& sequence) {
     std::ifstream fasta_file(file_name);

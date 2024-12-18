@@ -3,7 +3,13 @@
 
 #include <string>
 
+struct fasta_content {
+    std::string sequence;
+    std::string chromosom;
+};
 
-bool read_fasta(const std::string& file_name, std::string& sequence);
+
+
+bool read_fasta(const std::string& file_name, fasta_content& fasta_c);
 
 #endif

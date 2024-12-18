@@ -3,7 +3,7 @@
 
 #include "fasta_reader.h"
 
-bool read_fasta(const std::string& file_name, std::string& sequence) {
+bool read_fasta(const std::string& file_name, fasta_content& fasta_c) {
     std::ifstream fasta_file(file_name);
 
     if (!fasta_file.is_open()) {
@@ -15,11 +15,12 @@ bool read_fasta(const std::string& file_name, std::string& sequence) {
     
     while (std::getline(fasta_file, line)) {
         if (line[0] == '>') {
-            std::cout << "Header: " << line << std::endl;  
+            fasta_c.chromosom = line.substr(1, line.size() - 1);
         } else {
-            sequence += line;
+            fasta_c.sequence += line;
         }
     }
+
 
     return true;
 }

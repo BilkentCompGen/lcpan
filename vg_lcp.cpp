@@ -59,6 +59,22 @@ std::string vcf_path;         /**< Path to the input VCF file. */
 std::string rgfa_path;        /**< Path to the output rGFA file. */
 int level;                    /**< LCP level for parsing. */
 int offsets[] = {1, 4, 11, 27}; /**< Offsets for LCP parsing levels obtained experimentally. */
+std::vector<std::string> chrmsms;
+
+// Sequence graph node structure
+/**
+ * @struct core_node
+ * Represents a node in the sequence graph.
+ */
+typedef struct core_node {
+    std::vector<core_node*> next; /**< Pointers to adjacent nodes. */
+    lcp::core* core_value = nullptr;
+    std::string id;                /**< Unique identifier for the node. */
+    bool end_flag = false;       /**< Indicates if the node is the end of the sequence. */
+    std::vector<int> SN_ids;
+    int SO;
+    bool rank;
+} core_node;
 
 // Data structures for the rGFA format
 /**
@@ -66,7 +82,7 @@ int offsets[] = {1, 4, 11, 27}; /**< Offsets for LCP parsing levels obtained exp
  * Represents a segment in the rGFA format.
  */
 typedef struct segment {
-    std::string core;       /**< The nucleotide sequence of the segment. */
+    core_node* core;       /**< The nucleotide sequence of the segment. */
     std::string seg_name;   /**< Identifier for the segment. */
 } segment;
 
@@ -86,18 +102,6 @@ std::vector<segment*> segments;
 std::vector<g_link*> links;
 std::string ref_path = "P ref ";
 
-// Sequence graph node structure
-/**
- * @struct core_node
- * Represents a node in the sequence graph.
- */
-typedef struct core_node {
-    std::vector<core_node*> next; /**< Pointers to adjacent nodes. */
-    lcp::core* core_value = nullptr;
-    std::string id;                /**< Unique identifier for the node. */
-    bool end_flag = false;       /**< Indicates if the node is the end of the sequence. */
-
-} core_node;
 
 // Sequence graph class
 /**
@@ -156,9 +160,8 @@ void dfs(core_node* node, std::unordered_set<core_node*>& visited) {
     visited.insert(node);
 
     std::ostringstream oss;
-    oss << node->core_value;
     segment* seg = new segment();
-    seg->core = oss.str();
+    seg->core = node;
     seg->seg_name = node->id;
 
     segments.push_back(seg);
@@ -172,7 +175,7 @@ void dfs(core_node* node, std::unordered_set<core_node*>& visited) {
         lnk->target = node->next.at(i)->id;
         lnk->source_orient = 1;
         lnk->target_orient = 1;
-        lnk->cigar = 1;
+        lnk->cigar = 0;
         links.push_back(lnk);
 
 
@@ -208,7 +211,7 @@ void dfs(core_node* node, std::unordered_set<core_node*>& visited) {
  * @brief Prints the sequence graph and writes it in rGFA format.
  * @param graph The sequence graph to be printed.
  */
-void print_seq(sequence_graph& graph, std::string rgfa_path) {
+void print_seq(sequence_graph& graph, std::string rgfa_path, std::string c) {
     std::unordered_set<core_node*> visited;
 
     std::cout << "\n********************************************\n" << std::endl;
@@ -221,7 +224,16 @@ void print_seq(sequence_graph& graph, std::string rgfa_path) {
 
     std::ofstream out_file(rgfa_path);
     for (segment* s : segments) {
-        out_file<< "S\t" << s->seg_name << "\t" << s->core;
+        out_file << "S\t" << s->seg_name << "\t" << s->core->core_value << "\tSN:Z:";
+        
+        for (int i : s->core->SN_ids) {
+            if (i == -1) out_file << c << ",";
+            else {
+                out_file << chrmsms.at(i) <<",";
+            }
+        }
+
+            out_file << "\tSO:i:" << s->core->SO << "\tSR:i:" << (s->core->rank ? 0 : 1);
         out_file << std::endl;
     }
 
@@ -436,7 +448,7 @@ std::string construct_variated_seq(std::string &sequence, std::string variation,
  * @param start_loc The starting position for the variation in the sequence graph.
  * @param end_loc The ending position for the variation in the sequence graph.
  */
-void variate(sequence_graph& original_seq, std::string variated_seq, int start_loc, int end_loc) {
+void variate(sequence_graph& original_seq, std::string variated_seq, int start_loc, int end_loc, std::vector<int> SN_ids) {
 
     int* boundaries = find_boundaries(start_loc, end_loc, original_seq);
     lcp::lps* var_str = new lcp::lps(variated_seq, false);
@@ -458,12 +470,14 @@ void variate(sequence_graph& original_seq, std::string variated_seq, int start_l
 
     std::cout << "fd: " << first_difference << " ld: " << last_difference_var << " ld2: " << last_difference_org << std::endl;
 
-
     // add all the different nodes as a bubble
     for (int i = first_difference; i <= last_difference_var; i++) {
         core_node* new_cn = new core_node();
         new_cn->core_value = &var_str->cores->at(i);
+        new_cn->SN_ids = SN_ids;
         new_cn->id = "b" + std::to_string(global_no_of_bubbles) + "-" + std::to_string(i - first_difference);
+        new_cn->SO = new_cn->core_value->start;
+        new_cn->rank = false;
         curr->next.push_back(new_cn);
         curr = new_cn;
     }
@@ -520,28 +534,36 @@ int main(int argc, char* argv[]) {
 }
 
     lcp::encoding::init();
-    std::string sequence;
+    fasta_content fc;
     std::vector<variation*> variation_list;
-    if (!read_fasta(fasta_path, sequence)) return 1;
-    if (!read_vcf(vcf_path, variation_list)) return 1;
+    if (!read_fasta(fasta_path, fc)) return 1;
+    if (!read_vcf(vcf_path, variation_list, chrmsms)) return 1;
 
-    
+    for (std::string c : chrmsms) {
+        std::cout << c << "\t";
+    }
+    std::cout << std::endl;
 
-    lcp::lps* str = new lcp::lps (sequence);
+    lcp::lps* str = new lcp::lps (fc.sequence);
     str->deepen(level);
 
     sequence_graph sg;
 
-    std::cout << str;
+    // std::cout << str;
 
 
     core_node* prev = nullptr;
     std::cout << str->size() << std::endl;
+    std::vector<int> dum;
+    dum.push_back(-1);
 
     for (size_t i = 0; i < str->size(); i++) {
         core_node* new_cn = new core_node();  
         new_cn->core_value = &str->cores->at(i);
         new_cn->id = "o" + std::to_string(i);
+        new_cn->rank = true;
+        new_cn->SN_ids = dum;
+        new_cn->SO = new_cn->core_value->start;
         std::cout << (str->cores->at(i)) << std::endl;
         if (i == str->size() - 1) new_cn->end_flag = true;
 
@@ -557,30 +579,37 @@ int main(int argc, char* argv[]) {
     }
 
     for (variation* v : variation_list) {
-        std::cout << "CHRM: " <<v->chromosom << " ID: " << v->id << 
+        std::cout << "CHRM: " << v->chromosom << " ID: " << v->id << 
         " POS: " << v->pos << " REF: " << v->ref << " ALT: " << v->alt << "\n";
+        
+        std::cout << "IDS: ";
+        for (int i : v->chromosom_ids) {
+            std::cout << i << "\t";
+        }
+        std::cout << std::endl;
+
         if (strcmp(v->alt.c_str(), ".") == 0) { // deletion
             std::cout << "deletion:::::::: ";
             std::string variated_seq = 
-                construct_variated_seq(sequence, v->alt, v->pos, v->ref.size() + v->pos - 1, sg, 2);
-            variate(sg, variated_seq, v->pos, v->ref.size() + v->pos - 1);
+                construct_variated_seq(fc.sequence, v->alt, v->pos, v->ref.size() + v->pos - 1, sg, 2);
+            variate(sg, variated_seq, v->pos, v->ref.size() + v->pos - 1, v->chromosom_ids);
         } else {
             std::cout << "variation:::::::: " << std::endl;
             if (strcmp(v->ref.c_str(), ".") == 0) { // insertion
                 std::string variated_seq = 
-                    construct_variated_seq(sequence, v->alt, v->pos, v->pos, sg, 0);
-                variate(sg, variated_seq, v->pos, v->pos);
+                    construct_variated_seq(fc.sequence, v->alt, v->pos, v->pos, sg, 0);
+                variate(sg, variated_seq, v->pos, v->pos, v->chromosom_ids);
             } 
                 
             else {
                 std::string variated_seq = 
-                    construct_variated_seq(sequence, v->alt, v->pos, v->ref.size() + v->pos - 1, sg, 1);
-                variate(sg, variated_seq, v->pos, v->ref.size() + v->pos - 1);
+                    construct_variated_seq(fc.sequence, v->alt, v->pos, v->ref.size() + v->pos - 1, sg, 1);
+                variate(sg, variated_seq, v->pos, v->ref.size() + v->pos - 1, v->chromosom_ids);
             }
         }
     }
 
-    print_seq(sg, rgfa_path);
+    print_seq(sg, rgfa_path, fc.chromosom);
 
     core_node* curr = sg.head;
 

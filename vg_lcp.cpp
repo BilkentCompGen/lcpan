@@ -172,7 +172,11 @@ void dfs(core_node* node, std::unordered_set<core_node*>& visited) {
 
         g_link* lnk = new g_link();
         lnk->source = node->id;
-        lnk->target = node->next.at(i)->id;
+        if (node->next.at(i)->id.at(0) == 'b' && node->next.at(i)->id.at(1) == 'h') {
+            lnk->target = "00";
+        } else {
+            lnk->target = node->next.at(i)->id;
+        }
         lnk->source_orient = 1;
         lnk->target_orient = 1;
         lnk->cigar = 0;
@@ -238,6 +242,7 @@ void print_seq(sequence_graph& graph, std::string rgfa_path, std::string c) {
     }
 
     for (g_link* l : links) {
+        if (l->target.at(0) == '0' && l->target.at(1) == '0') continue;
         out_file << "L\t" << l->source << "\t" << (l->source_orient ? "+\t" : "-\t") <<
             l->target << "\t" << (l->target_orient ? "+\t" : "-\t") << l->cigar << "M";
         out_file << std::endl;
@@ -268,10 +273,10 @@ int* find_boundaries(int start_loc, int end_loc, sequence_graph& sg) {
 
     // traverse to find the starting core
     core_node* curr_start = sg.head;
-
-    std::cout << "END: " << curr_start->core_value->end << std::endl;
+    core_node* prev_start = sg.head;
 
     while ((int) (curr_start->core_value->end) < start_loc) {
+        prev_start = curr_start;
         curr_start = curr_start->next.at(0);
         start_core_number++;
     }
@@ -293,8 +298,8 @@ int* find_boundaries(int start_loc, int end_loc, sequence_graph& sg) {
     }
 
     // set the start and the end indices in the original sequence
-    start_index = curr_start->core_value->start; 
-    end_index = prev_end->core_value->end;
+    start_index = prev_start->core_value->start; 
+    end_index = curr_end->core_value->end;
 
     int* boundaries = new int[4]{start_index, end_index, start_core_number, end_core_number};
     return boundaries;
@@ -319,21 +324,17 @@ core_node* align_variation(core_node* starting_core, lcp::lps* var_str,
     first_difference = 0;
     core_node* curr = starting_core->next.at(0);
     core_node* prev_start = starting_core;
-    
-    std::cout << "Var_str: " << var_str << std::endl;
-
-    std::cout << "Start core: " << strt_core_in_org << " End core: " << end_core_in_org << std::endl;
-    for (int i = strt_core_in_org; i <= end_core_in_org; i++) {
-        std::cout << curr->core_value << " ";
-        if (curr->next.size() > 0)
-            curr = curr->next.at(0);
-    }
-    std::cout << std::endl << std::endl;
+    bool diff = true;
 
     curr = prev_start->next.at(0);
 
-    while (curr != nullptr && !curr->end_flag && first_difference < (int) (var_str->cores->size()) && 
+    while (curr != nullptr && !curr->end_flag && first_difference < (int) (var_str->size() - 1) && 
         curr->core_value->label == var_str->cores->at(first_difference).label) {
+            
+        std::cout <<  "VAR: " <<   var_str->cores->at(first_difference).label << " ORG: " 
+        << curr->core_value->label << std::endl;
+
+        diff = false;
 
         first_difference++;
         prev_start = curr;
@@ -343,8 +344,6 @@ core_node* align_variation(core_node* starting_core, lcp::lps* var_str,
             curr = nullptr;
     }
 
-    if (first_difference == (int) (var_str->cores->size()) && 
-        first_difference == (end_core_in_org - strt_core_in_org + 1)) return starting_core; // No changes in the cores
 
     // create stacks with enough spaces for the original and the varaited sequences
     core_node* original_stack [end_core_in_org - strt_core_in_org + 1];
@@ -353,9 +352,9 @@ core_node* align_variation(core_node* starting_core, lcp::lps* var_str,
     int variated_stack_size = 0;
 
     core_node* return_core = prev_start;
+    curr = starting_core->next.at(0);
 
     // add the cores to the stacks
-    std::cout << "First Difference: " << first_difference << std::endl;
     for (int i = strt_core_in_org + first_difference; i <= end_core_in_org; i++) {
         core_node* new_cn = new core_node();
         new_cn->core_value = curr->core_value;
@@ -375,11 +374,11 @@ core_node* align_variation(core_node* starting_core, lcp::lps* var_str,
     last_difference_var = var_str->cores->size()-1;
 
     for (int i = original_stack_size-1; i >= 0; i--) {
-        std::cout << "O:" << original_stack[i]->core_value->label << std::endl;
+        std::cout << "O:" << original_stack[i]->core_value << std::endl;
     }
 
     for (int i = variated_stack_size-1; i >= 0; i--) {
-        std::cout << "V:" << variated_stack[i]->core_value->label << std::endl;
+        std::cout << "V:" << variated_stack[i]->core_value << std::endl;
     }
     
             
@@ -388,6 +387,8 @@ core_node* align_variation(core_node* starting_core, lcp::lps* var_str,
             last_difference_org--;
             last_difference_var--;
     }
+
+    if (diff) first_difference = -1;
 
     return return_core;
 }
@@ -454,8 +455,6 @@ void variate(sequence_graph& original_seq, std::string variated_seq, int start_l
     lcp::lps* var_str = new lcp::lps(variated_seq, false);
     var_str->deepen(level);
 
-    std::cout << "Variated: " << var_str << std::endl;
-
     // set the curr as the starting core
     core_node* curr = original_seq.head;
     for (int i = 0; i < boundaries[2] - 1; i++) {
@@ -470,12 +469,17 @@ void variate(sequence_graph& original_seq, std::string variated_seq, int start_l
 
     std::cout << "fd: " << first_difference << " ld: " << last_difference_var << " ld2: " << last_difference_org << std::endl;
 
+
     // add all the different nodes as a bubble
-    for (int i = first_difference; i <= last_difference_var; i++) {
+    for (int i = (first_difference < 0) ? 0 : first_difference; i <= last_difference_var; i++) {
         core_node* new_cn = new core_node();
         new_cn->core_value = &var_str->cores->at(i);
         new_cn->SN_ids = SN_ids;
-        new_cn->id = "b" + std::to_string(global_no_of_bubbles) + "-" + std::to_string(i - first_difference);
+        if (first_difference < 0) {
+            new_cn->id = "bh" + std::to_string(global_no_of_bubbles) + "-" + std::to_string(i - first_difference);
+        } else {
+            new_cn->id = "b" + std::to_string(global_no_of_bubbles) + "-" + std::to_string(i - first_difference);
+        }
         new_cn->SO = new_cn->core_value->start;
         new_cn->rank = false;
         curr->next.push_back(new_cn);
@@ -489,7 +493,7 @@ void variate(sequence_graph& original_seq, std::string variated_seq, int start_l
     curr = starting_core->next.at(0);
 
     bool last_core = false;
-    for (int i = first_difference; i <= last_difference_org; i++) {
+    for (int i = first_difference; i < last_difference_org; i++) {
         if (curr->next.size() > 0)
             curr = curr->next.at(0);
         else
@@ -539,21 +543,12 @@ int main(int argc, char* argv[]) {
     if (!read_fasta(fasta_path, fc)) return 1;
     if (!read_vcf(vcf_path, variation_list, chrmsms)) return 1;
 
-    for (std::string c : chrmsms) {
-        std::cout << c << "\t";
-    }
-    std::cout << std::endl;
-
     lcp::lps* str = new lcp::lps (fc.sequence);
     str->deepen(level);
 
     sequence_graph sg;
 
-    // std::cout << str;
-
-
     core_node* prev = nullptr;
-    std::cout << str->size() << std::endl;
     std::vector<int> dum;
     dum.push_back(-1);
 
@@ -564,7 +559,6 @@ int main(int argc, char* argv[]) {
         new_cn->rank = true;
         new_cn->SN_ids = dum;
         new_cn->SO = new_cn->core_value->start;
-        std::cout << (str->cores->at(i)) << std::endl;
         if (i == str->size() - 1) new_cn->end_flag = true;
 
         if (sg.head == nullptr) {
@@ -581,12 +575,6 @@ int main(int argc, char* argv[]) {
     for (variation* v : variation_list) {
         std::cout << "CHRM: " << v->chromosom << " ID: " << v->id << 
         " POS: " << v->pos << " REF: " << v->ref << " ALT: " << v->alt << "\n";
-        
-        std::cout << "IDS: ";
-        for (int i : v->chromosom_ids) {
-            std::cout << i << "\t";
-        }
-        std::cout << std::endl;
 
         if (strcmp(v->alt.c_str(), ".") == 0) { // deletion
             std::cout << "deletion:::::::: ";

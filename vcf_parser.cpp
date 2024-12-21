@@ -133,12 +133,11 @@ bool read_vcf(const std::string& file_name, std::vector<variation*>& variation_l
                 variation_list.push_back(v);
             }
         } else {
-
-        }   
             for (int i = 0; i < (int)(chrmsm_ids_variations.at(0).size()); i++) {
                 new_var->chromosom_ids.push_back(chrmsm_ids_variations.at(0).at(i));
             }
             variation_list.push_back(new_var);
+        }   
     }
 
     return true;

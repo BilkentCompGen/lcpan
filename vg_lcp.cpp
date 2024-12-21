@@ -355,7 +355,7 @@ core_node* align_variation(core_node* starting_core, lcp::lps* var_str,
     curr = starting_core->next.at(0);
 
     // add the cores to the stacks
-    for (int i = strt_core_in_org + first_difference; i <= end_core_in_org; i++) {
+    for (int i = strt_core_in_org; i <= end_core_in_org; i++) {
         core_node* new_cn = new core_node();
         new_cn->core_value = curr->core_value;
         original_stack[original_stack_size++] = new_cn;
@@ -419,8 +419,6 @@ std::string construct_variated_seq(std::string &sequence, std::string variation,
         before = sequence.substr(boundaries[0] - 1, start_loc - boundaries[0]);
         after = sequence.substr(end_loc - 1, boundaries[1] - end_loc + 1);
         variated_seq = before + variation + after;
-
-        std:: cout << before << " " << variation << " " << after << std::endl;
         break;
     case 1: //diff
         
@@ -454,6 +452,7 @@ void variate(sequence_graph& original_seq, std::string variated_seq, int start_l
     int* boundaries = find_boundaries(start_loc, end_loc, original_seq);
     lcp::lps* var_str = new lcp::lps(variated_seq, false);
     var_str->deepen(level);
+    std::cout << var_str << std::endl;
 
     // set the curr as the starting core
     core_node* curr = original_seq.head;

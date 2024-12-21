@@ -61,6 +61,8 @@ int level;                    /**< LCP level for parsing. */
 int offsets[] = {1, 4, 11, 27}; /**< Offsets for LCP parsing levels obtained experimentally. */
 std::vector<std::string> chrmsms;
 
+std::vector<lcp::lps*> variated_strs;
+
 // Sequence graph node structure
 /**
  * @struct core_node
@@ -136,6 +138,23 @@ std::string core_to_seq(std::string core) {
     }
     return seq;
 }
+
+void delete_core_nodes(core_node* node, std::unordered_set<core_node*>& visited) {
+    if (node == nullptr || visited.count(node)) {
+        return;
+    }
+
+    visited.insert(node);
+
+    // Recursively delete all connected nodes
+    for (core_node* next_node : node->next) {
+        delete_core_nodes(next_node, visited);
+    }
+
+    // Delete the current node after visiting its neighbors
+    delete node;
+}
+
 
 /**
  * @brief Calculates the offset for LCP parsing based on the sequence length.
@@ -283,7 +302,6 @@ int* find_boundaries(int start_loc, int end_loc, sequence_graph& sg) {
 
     // traverse to find the ending core
     core_node* curr_end = curr_start;
-    core_node* prev_end = curr_start;
     end_core_number = start_core_number - 1;
 
     bool end_case = false;
@@ -292,7 +310,6 @@ int* find_boundaries(int start_loc, int end_loc, sequence_graph& sg) {
             end_case = true;
             break;
         }
-        prev_end = curr_end;
         curr_end = curr_end->next.at(0);
         end_core_number++;
     }
@@ -390,6 +407,14 @@ core_node* align_variation(core_node* starting_core, lcp::lps* var_str,
 
     if (diff) first_difference = -1;
 
+    for (core_node* o : original_stack) {
+        delete o;
+    }
+
+    for (core_node* v : variated_stack) {
+        delete v;
+    }
+
     return return_core;
 }
 
@@ -437,6 +462,8 @@ std::string construct_variated_seq(std::string &sequence, std::string variation,
         break;
     }
 
+    delete[] boundaries;
+
     return variated_seq;
 }
 
@@ -453,6 +480,8 @@ void variate(sequence_graph& original_seq, std::string variated_seq, int start_l
     lcp::lps* var_str = new lcp::lps(variated_seq, false);
     var_str->deepen(level);
     std::cout << var_str << std::endl;
+
+    variated_strs.push_back(var_str);
 
     // set the curr as the starting core
     core_node* curr = original_seq.head;
@@ -501,6 +530,8 @@ void variate(sequence_graph& original_seq, std::string variated_seq, int start_l
     }   
     if (!last_core) 
         end_of_bubble->next.push_back(curr);
+
+    delete[] boundaries;
 }
 
 /**
@@ -598,22 +629,26 @@ int main(int argc, char* argv[]) {
 
     print_seq(sg, rgfa_path, fc.chromosom);
 
-    core_node* curr = sg.head;
-
-    std::cout << std::endl;
-
-    curr = sg.head;
-    core_node* next = nullptr;
-
-    while (curr != nullptr) {
-        if (!curr->next.empty()) {
-            next = curr->next.at(0);
-        } else {
-            next = nullptr;
-        }
-        delete curr;
-        curr = next;
+    for (segment* seg : segments) {
+        delete seg;
     }
+
+    for (g_link* glnk : links) {
+        delete glnk;
+    }
+
+    std::unordered_set<core_node*> visited;
+    delete_core_nodes(sg.head, visited);
+
+    for (variation* v : variation_list) {
+        delete v;
+    }
+
+    for (lcp::lps* vs : variated_strs) {
+        delete vs;
+    }
+
+    delete str;
 
     return 0;
 }

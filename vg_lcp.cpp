@@ -139,6 +139,11 @@ std::string core_to_seq(std::string core) {
     return seq;
 }
 
+/**
+ * @brief Performs a depth-first traversal of the sequence graph to securely delete the core_node objects.
+ * @param node The starting node for traversal.
+ * @param visited A set to track visited nodes.
+**/
 void delete_core_nodes(core_node* node, std::unordered_set<core_node*>& visited) {
     if (node == nullptr || visited.count(node)) {
         return;
@@ -162,7 +167,7 @@ void delete_core_nodes(core_node* node, std::unordered_set<core_node*>& visited)
  * @return The calculated offset.
  */
 int calculate_offset(int n) {
-    return ceil(pow(4.5585 * (2.4715 - 0.0469 * std::log(n)), (n-1)));
+    return ceil(3.6 * pow((1 / 0.45), (n-1)));
 }
 
 /**
@@ -285,7 +290,9 @@ int* find_boundaries(int start_loc, int end_loc, sequence_graph& sg) {
     int start_core_number = 0; // start and end core numbers fixing the first possible changed node as 0
     int end_core_number = 0;
 
-    int offset = level <= 4 ? (int)(offsets[level - 1] * 1.5) : calculate_offset(level);
+    int offset = level <= 4 ? (int)(offsets[level - 1] * 1.5) : calculate_offset(level) * 1.5;
+
+    std::cout << "OFFSET: " << offset << std::endl;
 
     start_loc = MAX(0, start_loc - offset);
     end_loc = MIN(end_loc + offset, 10000);
@@ -294,7 +301,13 @@ int* find_boundaries(int start_loc, int end_loc, sequence_graph& sg) {
     core_node* curr_start = sg.head;
     core_node* prev_start = sg.head;
 
+    bool end_case = false;
+
     while ((int) (curr_start->core_value->end) < start_loc) {
+        if (curr_start->end_flag) {
+            end_case = true;
+            break;
+        }
         prev_start = curr_start;
         curr_start = curr_start->next.at(0);
         start_core_number++;
@@ -304,7 +317,6 @@ int* find_boundaries(int start_loc, int end_loc, sequence_graph& sg) {
     core_node* curr_end = curr_start;
     end_core_number = start_core_number - 1;
 
-    bool end_case = false;
     while ((int) (curr_end->core_value->start) <= end_loc && !end_case) {
         if (curr_end->end_flag) {
             end_case = true;
@@ -503,7 +515,7 @@ void variate(sequence_graph& original_seq, std::string variated_seq, int start_l
         core_node* new_cn = new core_node();
         new_cn->core_value = &var_str->cores->at(i);
         new_cn->SN_ids = SN_ids;
-        if (first_difference < 0) {
+        if (first_difference < 0 && boundaries[2] == 0) {
             new_cn->id = "bh" + std::to_string(global_no_of_bubbles) + "-" + std::to_string(i - first_difference);
         } else {
             new_cn->id = "b" + std::to_string(global_no_of_bubbles) + "-" + std::to_string(i - first_difference);
@@ -649,6 +661,11 @@ int main(int argc, char* argv[]) {
     }
 
     delete str;
+
+        int offset = level <= 4 ? (int)(offsets[level - 1] * 1.5) : calculate_offset(level) * 1.5;
+
+    std::cout << "OFFSET: " << offset << std::endl;
+
 
     return 0;
 }

@@ -97,13 +97,14 @@ bool read_vcf(const std::string& file_name, std::vector<variation*>& variation_l
                     int w0 = word[0] - '0';
                     int w2 = word[2] - '0';
 
-                    if ((int)(chrmsm_ids_variations.size()) <= w0) 
+                    if (w0 != 0 && (int)(chrmsm_ids_variations.size()) <= w0) {
                         chrmsm_ids_variations.resize(w0 + 1); // Resize to ensure `w0` is valid
-                    chrmsm_ids_variations.at(w0-1).push_back(i - 9);
+                        chrmsm_ids_variations.at(w0-1).push_back(i - 9);
+                    }
 
-                    if ((int) (chrmsm_ids_variations.size()) <= w2) 
+                    if (w2 != 0 && (int) (chrmsm_ids_variations.size()) <= w2) 
                         chrmsm_ids_variations.resize(w2 + 1); // Resize to ensure `w2` is valid
-                    if (w0 != w2) chrmsm_ids_variations.at(w2-1).push_back(i - 9);
+                    if (w2 != 0 && w0 != w2) chrmsm_ids_variations.at(w2-1).push_back(i - 9);
                 }
             }
         }
@@ -133,14 +134,17 @@ bool read_vcf(const std::string& file_name, std::vector<variation*>& variation_l
                 variation_list.push_back(v);
             }
         } else {
-            variation* v = new variation; 
+            variation* v = new variation;
             v->alt = new_var->alt;
             v->chromosom = new_var->chromosom;
             v->id = new_var->id;
             v->pos = new_var->pos;
             v->ref = new_var->ref;
-            for (int i = 0; i < (int)(chrmsm_ids_variations.at(0).size()); i++) {
-                v->chromosom_ids.push_back(chrmsm_ids_variations.at(0).at(i));
+
+            if (!chrmsm_ids_variations.empty()) {
+                for (int id : chrmsm_ids_variations.at(0)) {
+                    v->chromosom_ids.push_back(id);
+                }
             }
             variation_list.push_back(v);
         }   

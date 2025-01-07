@@ -94,8 +94,11 @@ bool read_vcf(const std::string& file_name, std::vector<variation*>& variation_l
 
             if (i > 8) {
                 if (word[0] != '0' || word[2] != '0') {
-                    int w0 = word[0] - '0';
-                    int w2 = word[2] - '0';
+		    int w0, w2;
+		    if (word[0] == '.') w0 = 0;
+	            else w0 = word[0] - '0';
+                    if (word[2] == '.') w2 = 0;
+		    else w2 = word[2] - '0';
 
                     if (w0 != 0 && (int)(chrmsm_ids_variations.size()) <= w0) {
                         chrmsm_ids_variations.resize(w0 + 1); // Resize to ensure `w0` is valid
@@ -115,15 +118,21 @@ bool read_vcf(const std::string& file_name, std::vector<variation*>& variation_l
         std::string token;
 
         while (std::getline(iss, token, ',')) {
-            tokens.push_back(trim(token));
-        }
+	          tokens.push_back(trim(token));
+	}
+
+	if (tokens.empty()) {
+    		delete new_var;
+    		throw std::runtime_error("No valid tokens found in new_var->alt");
+	}
 
         if (tokens.size() > 1) {
             int c = 0;
             for (std::string t : tokens) {
-                variation* v = new variation; 
+                variation* v = new variation;
                 v->alt = t;
                 v->chromosom = new_var->chromosom;
+		if ((int)(chrmsm_ids_variations.size() <= c)) break;
                 for (int i = 0; i < (int)(chrmsm_ids_variations.at(c).size()); i++) {
                     v->chromosom_ids.push_back(chrmsm_ids_variations.at(c).at(i));
                 }
@@ -147,10 +156,9 @@ bool read_vcf(const std::string& file_name, std::vector<variation*>& variation_l
                 }
             }
             variation_list.push_back(v);
-        }   
+        }
 
         delete new_var;
     }
-
     return true;
 }

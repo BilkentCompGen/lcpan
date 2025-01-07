@@ -48,6 +48,7 @@
 #include "lps.h"
 #include "fasta_reader.h"
 #include "vcf_parser.h"
+#include <limits>
 
 #define MIN(a,b) (((a)<(b))?(a):(b))
 #define MAX(a,b) (((a)>(b))?(a):(b))
@@ -104,6 +105,14 @@ std::vector<segment*> segments;
 std::vector<g_link*> links;
 std::string ref_path = "P ref ";
 
+
+typedef struct indx {
+    core_node* core;
+    int start_point;
+} indx;
+
+int curr_indx = 0;
+std::vector<indx*> indices;
 
 // Sequence graph class
 /**
@@ -292,14 +301,20 @@ int* find_boundaries(int start_loc, int end_loc, sequence_graph& sg) {
 
     int offset = level <= 4 ? (int)(offsets[level - 1] * 1.5) : calculate_offset(level) * 1.5;
 
-    std::cout << "OFFSET: " << offset << std::endl;
-
     start_loc = MAX(0, start_loc - offset);
-    end_loc = MIN(end_loc + offset, 10000);
+    end_loc = MIN(end_loc + offset, std::numeric_limits<int>::max());
 
     // traverse to find the starting core
-    core_node* curr_start = sg.head;
-    core_node* prev_start = sg.head;
+    core_node* curr_start;
+    core_node* prev_start;
+
+    for (indx* i : indices) {
+        if (i->start_point < start_loc) {
+	    curr_start = i->core;
+	    prev_start = i->core;
+	    break;	
+	}
+    } 
 
     bool end_case = false;
 
@@ -345,10 +360,18 @@ int* find_boundaries(int start_loc, int end_loc, sequence_graph& sg) {
  * @param last_difference_var Outputs the last differing core in the variation sequence.
  * @return The core node where alignment starts.
  */
-core_node* align_variation(core_node* starting_core, lcp::lps* var_str, 
+core_node* align_variation(core_node* starting_core, lcp::lps* var_str,  
     int strt_core_in_org, int end_core_in_org,
     int& first_difference, int& last_difference_org, int& last_difference_var) {
     
+
+    if (var_str->size() <= 0) {
+	first_difference = -1;
+	last_difference_org = -1;
+	last_difference_var = -1;
+	return starting_core;
+	
+    }	
     // find when the two cores set are different for the first time
     first_difference = 0;
     core_node* curr = starting_core->next.at(0);
@@ -360,9 +383,7 @@ core_node* align_variation(core_node* starting_core, lcp::lps* var_str,
     while (curr != nullptr && !curr->end_flag && first_difference < (int) (var_str->size() - 1) && 
         curr->core_value->label == var_str->cores->at(first_difference).label) {
             
-        std::cout <<  "VAR: " <<   var_str->cores->at(first_difference).label << " ORG: " 
-        << curr->core_value->label << std::endl;
-
+       
         diff = false;
 
         first_difference++;
@@ -376,7 +397,7 @@ core_node* align_variation(core_node* starting_core, lcp::lps* var_str,
 
     // create stacks with enough spaces for the original and the varaited sequences
     core_node* original_stack [end_core_in_org - strt_core_in_org + 1];
-    core_node* variated_stack [var_str->cores->size()];
+    core_node* variated_stack [var_str->size()];
     int original_stack_size = 0;
     int variated_stack_size = 0;
 
@@ -401,14 +422,6 @@ core_node* align_variation(core_node* starting_core, lcp::lps* var_str,
     // find the first node they are different from the end
     last_difference_org = end_core_in_org - strt_core_in_org;
     last_difference_var = var_str->cores->size()-1;
-
-    for (int i = original_stack_size-1; i >= 0; i--) {
-        std::cout << "O:" << original_stack[i]->core_value << std::endl;
-    }
-
-    for (int i = variated_stack_size-1; i >= 0; i--) {
-        std::cout << "V:" << variated_stack[i]->core_value << std::endl;
-    }
     
             
     while (original_stack_size > 0 && variated_stack_size > 0 && 
@@ -491,7 +504,7 @@ void variate(sequence_graph& original_seq, std::string variated_seq, int start_l
     int* boundaries = find_boundaries(start_loc, end_loc, original_seq);
     lcp::lps* var_str = new lcp::lps(variated_seq, false);
     var_str->deepen(level);
-    std::cout << var_str << std::endl;
+  
 
     variated_strs.push_back(var_str);
 
@@ -594,6 +607,8 @@ int main(int argc, char* argv[]) {
     std::vector<int> dum;
     dum.push_back(-1);
 
+    int indx_incr = calculate_offset(level) * 500;
+
     for (size_t i = 0; i < str->size(); i++) {
         core_node* new_cn = new core_node();  
         new_cn->core_value = &str->cores->at(i);
@@ -610,21 +625,29 @@ int main(int argc, char* argv[]) {
             prev->next.push_back(new_cn);
         }
 
+	if (new_cn->core_value->start >= curr_indx) {
+	   indx* n_i = new indx;
+           n_i->core = new_cn;
+           n_i->start_point = new_cn->core_value->start; 
+	   indices.push_back(n_i);
+	   curr_indx += indx_incr;
+	}
+
         prev = new_cn;
         sg.size++;
     }
-
+    float count = 0;
+    float  total_size = (float)(variation_list.size());	
     for (variation* v : variation_list) {
-        std::cout << "CHRM: " << v->chromosom << " ID: " << v->id << 
-        " POS: " << v->pos << " REF: " << v->ref << " ALT: " << v->alt << "\n";
-
+	std::cout << ((count / total_size) * 100) << " : " << count << " / " << total_size <<  std::endl;
+	count++;
         if (strcmp(v->alt.c_str(), ".") == 0) { // deletion
-            std::cout << "deletion:::::::: ";
+      
             std::string variated_seq = 
                 construct_variated_seq(fc.sequence, v->alt, v->pos, v->ref.size() + v->pos - 1, sg, 2);
             variate(sg, variated_seq, v->pos, v->ref.size() + v->pos - 1, v->chromosom_ids);
         } else {
-            std::cout << "variation:::::::: " << std::endl;
+     
             if (strcmp(v->ref.c_str(), ".") == 0) { // insertion
                 std::string variated_seq = 
                     construct_variated_seq(fc.sequence, v->alt, v->pos, v->pos, sg, 0);

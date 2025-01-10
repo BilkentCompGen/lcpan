@@ -40,6 +40,7 @@ bool read_vcf(const std::string& file_name, std::vector<variation*>& variation_l
 
         if (line.empty() || (line[0] == '#' && line[1] == '#')) continue;
 
+        // HEADER LINE
         if (line[0] == '#') {
             std::vector<std::string> tokens;
 
@@ -94,16 +95,20 @@ bool read_vcf(const std::string& file_name, std::vector<variation*>& variation_l
 
             if (i > 8) {
                 if (word[0] != '0' || word[2] != '0') {
-		    int w0, w2;
-		    if (word[0] == '.') w0 = 0;
-	            else w0 = word[0] - '0';
-                    if (word[2] == '.') w2 = 0;
-		    else w2 = word[2] - '0';
+                    int w0, w2;
+                    if (word[0] == '.') w0 = 0;
+                    else w0 = word[0] - '0';
 
-                    if (w0 != 0 && (int)(chrmsm_ids_variations.size()) <= w0) {
-                        chrmsm_ids_variations.resize(w0 + 1); // Resize to ensure `w0` is valid
+                    if (word[2] == '.') w2 = 0;
+                    else w2 = word[2] - '0';
+
+                    if (w0 != 0) {
+                        if ((int)(chrmsm_ids_variations.size()) <= w0) {
+                            chrmsm_ids_variations.resize(w0 + 1); // Resize to ensure `w0` is valid
+                        }    
                         chrmsm_ids_variations.at(w0-1).push_back(i - 9);
                     }
+
 
                     if (w2 != 0 && (int) (chrmsm_ids_variations.size()) <= w2) 
                         chrmsm_ids_variations.resize(w2 + 1); // Resize to ensure `w2` is valid
@@ -111,7 +116,6 @@ bool read_vcf(const std::string& file_name, std::vector<variation*>& variation_l
                 }
             }
         }
-
         std::vector<std::string> tokens;
 
         std::istringstream iss(new_var->alt);
@@ -132,7 +136,6 @@ bool read_vcf(const std::string& file_name, std::vector<variation*>& variation_l
                 variation* v = new variation;
                 v->alt = t;
                 v->chromosom = new_var->chromosom;
-		if ((int)(chrmsm_ids_variations.size() <= c)) break;
                 for (int i = 0; i < (int)(chrmsm_ids_variations.at(c).size()); i++) {
                     v->chromosom_ids.push_back(chrmsm_ids_variations.at(c).at(i));
                 }

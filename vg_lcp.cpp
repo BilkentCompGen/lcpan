@@ -61,6 +61,7 @@ std::string rgfa_path;        /**< Path to the output rGFA file. */
 int level;                    /**< LCP level for parsing. */
 int offsets[] = {1, 4, 11, 27}; /**< Offsets for LCP parsing levels obtained experimentally. */
 std::vector<std::string> chrmsms;
+int idx_size = 100;
 
 std::vector<lcp::lps*> variated_strs;
 
@@ -105,14 +106,8 @@ std::vector<segment*> segments;
 std::vector<g_link*> links;
 std::string ref_path = "P ref ";
 
-
-typedef struct indx {
-    core_node* core;
-    int start_point;
-} indx;
-
 int curr_indx = 0;
-std::vector<indx*> indices;
+std::vector<core_node*> indices;
 
 // Sequence graph class
 /**
@@ -289,10 +284,9 @@ void print_seq(sequence_graph& graph, std::string rgfa_path, std::string c) {
  * @brief Determines the boundaries of a variation in the sequence graph.
  * @param start_loc The start position of the variation.
  * @param end_loc The end position of the variation.
- * @param sg The sequence graph.
  * @return Array containing the start index, end index, start core number, and end core number.
  */
-int* find_boundaries(int start_loc, int end_loc, sequence_graph& sg) {
+int* find_boundaries(int start_loc, int end_loc) {
 
     int start_index; // indices in the original sequence
     int end_index; 
@@ -308,13 +302,11 @@ int* find_boundaries(int start_loc, int end_loc, sequence_graph& sg) {
     core_node* curr_start;
     core_node* prev_start;
 
-    for (indx* i : indices) {
-        if (i->start_point < start_loc) {
-	    curr_start = i->core;
-	    prev_start = i->core;
-	    break;	
-	}
-    } 
+    int indices_idx = start_loc / idx_size;
+    if (indices_idx >= (int) indices.size()) indices_idx = indices.size() - 1;
+    core_node* temp = indices.at(indices_idx);
+    curr_start = ((int) temp->core_value->start <= start_loc || indices_idx == 0) ? temp : indices.at(indices_idx - 1);
+    prev_start = curr_start;
 
     bool end_case = false;
 
@@ -450,14 +442,13 @@ core_node* align_variation(core_node* starting_core, lcp::lps* var_str,
  * @param variation The variation to apply (insert, delete, or substitute).
  * @param start_loc The starting position for the variation.
  * @param end_loc The ending position for the variation.
- * @param original_seq The sequence graph representing the original sequence.
  * @param variation_type The type of variation (0: insertion, 1: substitution, 2: deletion).
  * @return The newly constructed variated sequence.
  */
 std::string construct_variated_seq(std::string &sequence, std::string variation, 
-    int start_loc, int end_loc, sequence_graph& original_seq, int variation_type) {
+    int start_loc, int end_loc, int variation_type) {
 
-    int* boundaries = find_boundaries(start_loc, end_loc, original_seq);
+    int* boundaries = find_boundaries(start_loc, end_loc);
     
     // construct the new varaited string and find its cores
     std::string before, after;
@@ -501,7 +492,7 @@ std::string construct_variated_seq(std::string &sequence, std::string variation,
  */
 void variate(sequence_graph& original_seq, std::string variated_seq, int start_loc, int end_loc, std::vector<int> SN_ids) {
 
-    int* boundaries = find_boundaries(start_loc, end_loc, original_seq);
+    int* boundaries = find_boundaries(start_loc, end_loc);
     lcp::lps* var_str = new lcp::lps(variated_seq, false);
     var_str->deepen(level);
   
@@ -559,6 +550,10 @@ void variate(sequence_graph& original_seq, std::string variated_seq, int start_l
     delete[] boundaries;
 }
 
+    void print_usage() {
+        std::cout << "Usage: ./vg_lcp -f <fasta_file> -v <vcf_file> -r <rgfa_path> -l <LCP_level>\n\n";
+    }
+
 /**
  * @brief Main function to process the input, construct the sequence graph, and apply variations.
  * @param argc The number of command-line arguments.
@@ -568,6 +563,7 @@ void variate(sequence_graph& original_seq, std::string variated_seq, int start_l
 int main(int argc, char* argv[]) {
 
     int opt;
+    bool fasta = false, vcf = false, rgfa = false, level = false;
 
     while ((opt = getopt(argc, argv, "f:v:l:r:")) != -1) {
         switch (opt) {
@@ -588,9 +584,15 @@ int main(int argc, char* argv[]) {
             return 1;
         default:
             std::cerr << "Error parsing options\n";
+            print_usage();
             return 1;
+        }
     }
-}
+
+    if (!fasta || !vcf || !rgfa || !level) {
+        print_usage();
+        return 1;
+    } 
 
     lcp::encoding::init();
     fasta_content fc;
@@ -607,7 +609,7 @@ int main(int argc, char* argv[]) {
     std::vector<int> dum;
     dum.push_back(-1);
 
-    int indx_incr = calculate_offset(level) * 500;
+    int indx_incr = idx_size;
 
     for (size_t i = 0; i < str->size(); i++) {
         core_node* new_cn = new core_node();  
@@ -625,11 +627,8 @@ int main(int argc, char* argv[]) {
             prev->next.push_back(new_cn);
         }
 
-	if (new_cn->core_value->start >= curr_indx) {
-	   indx* n_i = new indx;
-           n_i->core = new_cn;
-           n_i->start_point = new_cn->core_value->start; 
-	   indices.push_back(n_i);
+	if ((int) new_cn->core_value->start >= curr_indx) {
+	   indices.push_back(new_cn);
 	   curr_indx += indx_incr;
 	}
 
@@ -644,19 +643,19 @@ int main(int argc, char* argv[]) {
         if (strcmp(v->alt.c_str(), ".") == 0) { // deletion
       
             std::string variated_seq = 
-                construct_variated_seq(fc.sequence, v->alt, v->pos, v->ref.size() + v->pos - 1, sg, 2);
+                construct_variated_seq(fc.sequence, v->alt, v->pos, v->ref.size() + v->pos - 1, 2);
             variate(sg, variated_seq, v->pos, v->ref.size() + v->pos - 1, v->chromosom_ids);
         } else {
      
             if (strcmp(v->ref.c_str(), ".") == 0) { // insertion
                 std::string variated_seq = 
-                    construct_variated_seq(fc.sequence, v->alt, v->pos, v->pos, sg, 0);
+                    construct_variated_seq(fc.sequence, v->alt, v->pos, v->pos, 0);
                 variate(sg, variated_seq, v->pos, v->pos, v->chromosom_ids);
             } 
                 
             else {
                 std::string variated_seq = 
-                    construct_variated_seq(fc.sequence, v->alt, v->pos, v->ref.size() + v->pos - 1, sg, 1);
+                    construct_variated_seq(fc.sequence, v->alt, v->pos, v->ref.size() + v->pos - 1, 1);
                 variate(sg, variated_seq, v->pos, v->ref.size() + v->pos - 1, v->chromosom_ids);
             }
         }
@@ -684,11 +683,6 @@ int main(int argc, char* argv[]) {
     }
 
     delete str;
-
-        int offset = level <= 4 ? (int)(offsets[level - 1] * 1.5) : calculate_offset(level) * 1.5;
-
-    std::cout << "OFFSET: " << offset << std::endl;
-
 
     return 0;
 }

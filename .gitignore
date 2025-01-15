@@ -3,3 +3,4 @@ data/
 out/
 test_files/
 tests/
+*.o/

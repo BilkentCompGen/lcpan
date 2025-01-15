@@ -1,18 +1,11 @@
-#ifndef VCF_PARSER
-#define VCF_PARSER
+#ifndef __VCF_PARSER_H__
+#define __VCF_PARSER_H__
 
-#include <string>
-#include <vector>
+#include "struct_def.h"
+#include "utils.h"
+#include <stdio.h>
+#include <string.h>
 
-struct variation {
-    int pos;
-    std::string id;
-    std::string ref;
-    std::string alt;
-    std::string chromosom;
-    std::vector<int> chromosom_ids;
-};
-
-bool read_vcf(const std::string& file_name, std::vector<variation*>& variation_list, std::vector<std::string>& chrmsms);
+void read_vcf(struct opt_arg *args, struct ref_seq *seqs, int* failed_var_count, FILE *out, FILE *out_err);
 
 #endif

@@ -72,9 +72,10 @@ int main(int argc, char* argv[]) {
     fprintf(out_err, "CHR\tIDX\tORG\tALT\n");
 
     int failed_var_count = 0;
+    int invalid_line_count = 0;
 			 
 
-    read_vcf(&args, &seqs, &failed_var_count, out, out_err);
+    read_vcf(&args, &seqs, &failed_var_count, &invalid_line_count, out, out_err);
 
     fclose(out);
     fclose(out_err);
@@ -83,6 +84,7 @@ int main(int argc, char* argv[]) {
     free_ref_seq(&seqs);
 
     printf("Total number of failed variations: %d\n", failed_var_count);
+    printf("Total number of invalid lines in the vcf file: %d\n", invalid_line_count);
     
     return 0;
 }

@@ -2,7 +2,7 @@
 
 long count = 0;
 
-void read_vcf(struct opt_arg *args, struct ref_seq *seqs, int* failed_var_count, FILE *out, FILE *out_err) {
+void read_vcf(struct opt_arg *args, struct ref_seq *seqs, int* failed_var_count, int* invalid_line_count, FILE *out, FILE *out_err) {
     char line[1024];
     
     FILE *file = fopen(args->vcf_path, "r");
@@ -16,6 +16,8 @@ void read_vcf(struct opt_arg *args, struct ref_seq *seqs, int* failed_var_count,
     while (fgets(line, sizeof(line), file) != NULL) {
         line[strlen(line)-1] = '\0';
         // char *tag, *value;
+
+        
         
         if (line[0] == '#' && line[1] == '#') {
             // tag = strtok(line, "="); 
@@ -82,8 +84,18 @@ void read_vcf(struct opt_arg *args, struct ref_seq *seqs, int* failed_var_count,
         long offset;
     
         // split the line by tab characters
+        if (line == NULL) {
+            *invalid_line_count = (*invalid_line_count) + 1;
+            continue;
+        }
         chrom = strtok(line, "\t"); // get chromosome name
+        
         index = strtok(NULL, "\t"); // get index
+
+        if (index == NULL) {
+            *invalid_line_count = (*invalid_line_count) + 1;
+            continue;
+        }
         offset = strtol(index, NULL, 10);
         strtok(NULL, "\t");         // skip ID
         seq = strtok(NULL, "\t");   // get sequence
@@ -101,7 +113,8 @@ void read_vcf(struct opt_arg *args, struct ref_seq *seqs, int* failed_var_count,
 
         if (chrom_index == -1) {
             fprintf(stderr, "Couldn't locate chrom %s from VCF in referefence\n", chrom);
-            exit(EXIT_FAILURE);
+            *invalid_line_count = (*invalid_line_count) + 1;
+            continue;
         }
 
         char *alt_token = strtok(alt, ","); // split ALT alleles by comma

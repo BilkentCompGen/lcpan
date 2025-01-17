@@ -6,6 +6,6 @@
 #include <stdio.h>
 #include <string.h>
 
-void read_vcf(struct opt_arg *args, struct ref_seq *seqs, int* failed_var_count, FILE *out, FILE *out_err);
+void read_vcf(struct opt_arg *args, struct ref_seq *seqs, int* failed_var_count, int* invalid_line_count, FILE *out, FILE *out_err);
 
 #endif

@@ -133,7 +133,8 @@ void variate(struct chr *chrom, const char *org_seq, const char *alt_token, uint
 	for (uint64_t i = marginal_start; i < start_loc; i++) {
 		if (chrom->seq[i] == 'N') {
 			*failed_var_count = *failed_var_count + 1;
-			fprintf(out_err, "%s\t%ld\t%s\t%s\n", chrom->seq_name, start_loc, org_seq, alt_token);
+			fprintf(out_err, "The following variation couldn't be processed:\n");
+			fprintf(out_err, "CHROM: %s\tPOSITION: %ld\tORG: %s\tALT: %s\n\n", chrom->seq_name, start_loc, org_seq, alt_token);
 			return;
 		}
 	}
@@ -141,7 +142,8 @@ void variate(struct chr *chrom, const char *org_seq, const char *alt_token, uint
 	for (uint64_t i = end_loc; i < marginal_end; i++) {
 		if (chrom->seq[i] == 'N') {
 			*failed_var_count = *failed_var_count + 1;
-			fprintf(out_err, "%s\t%ld\t%s\t%s\n", chrom->seq_name, start_loc, org_seq, alt_token);
+			fprintf(out_err, "The following variation couldn't be processed:\n");
+			fprintf(out_err, "CHROM: %s\tPOSITION: %ld\tORG: %s\tALT: %s\n\n", chrom->seq_name, start_loc, org_seq, alt_token);
 			return;
 		}
 	}

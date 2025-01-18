@@ -69,7 +69,6 @@ int main(int argc, char* argv[]) {
         fprintf(stderr, "Couldn't open output file %s\n", "out_err");
         exit(EXIT_FAILURE);
     }
-    fprintf(out_err, "CHR\tIDX\tORG\tALT\n");
 
     int failed_var_count = 0;
     int invalid_line_count = 0;

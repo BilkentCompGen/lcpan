@@ -3,7 +3,8 @@
 long count = 0;
 
 void read_vcf(struct opt_arg *args, struct ref_seq *seqs, int* failed_var_count, int* invalid_line_count, FILE *out, FILE *out_err) {
-    char line[1024];
+    char line[5096];
+    uint64_t line_no = 0;
     
     FILE *file = fopen(args->vcf_path, "r");
     if (file == NULL) {
@@ -15,6 +16,7 @@ void read_vcf(struct opt_arg *args, struct ref_seq *seqs, int* failed_var_count,
 
     while (fgets(line, sizeof(line), file) != NULL) {
         line[strlen(line)-1] = '\0';
+        line_no++;
         // char *tag, *value;
 
         
@@ -85,6 +87,7 @@ void read_vcf(struct opt_arg *args, struct ref_seq *seqs, int* failed_var_count,
     
         // split the line by tab characters
         if (line == NULL) {
+            fprintf(out_err, "Line: %ld :: Couldn't process line: %s\n\n", line_no, line);
             *invalid_line_count = (*invalid_line_count) + 1;
             continue;
         }
@@ -93,6 +96,7 @@ void read_vcf(struct opt_arg *args, struct ref_seq *seqs, int* failed_var_count,
         index = strtok(NULL, "\t"); // get index
 
         if (index == NULL) {
+            fprintf(out_err, "Line: %ld :: Couldn't process line: %s\n\n", line_no, line);
             *invalid_line_count = (*invalid_line_count) + 1;
             continue;
         }
@@ -112,7 +116,7 @@ void read_vcf(struct opt_arg *args, struct ref_seq *seqs, int* failed_var_count,
         }
 
         if (chrom_index == -1) {
-            fprintf(stderr, "Couldn't locate chrom %s from VCF in referefence\n", chrom);
+            fprintf(out_err, "Line: %ld :: Couldn't locate chrom %s from VCF in referefence\n\n", line_no, chrom);
             *invalid_line_count = (*invalid_line_count) + 1;
             continue;
         }
@@ -129,6 +133,7 @@ void read_vcf(struct opt_arg *args, struct ref_seq *seqs, int* failed_var_count,
 
             alt_token = strtok(NULL, ",");
         }
+        line_no++;
     }
 
     fclose(file);

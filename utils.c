@@ -12,6 +12,8 @@ void print_link(uint64_t id1, char sign1, uint64_t id2, char sign2, int overlap,
 
 void print_ref_seq(struct ref_seq *seqs, FILE *out) {
 
+	printf("[INFO] Writing reference seq to output file.\n");
+
 	// iterate through each chromosome
 	for (int i=0; i<seqs->size; i++) {
 		const char *seq_name = seqs->chrs[i].seq_name;
@@ -33,6 +35,8 @@ void print_ref_seq(struct ref_seq *seqs, FILE *out) {
 			print_link(seqs->chrs[i].cores[j-1].id, '+', seqs->chrs[i].cores[j].id, '+', (int)(seqs->chrs[i].cores[j-1].end-seqs->chrs[i].cores[j].start), out);
 		}
 	}
+
+	printf("[INFO] Writing process completed.\n");
 }
 
 int suffix_to_prefix_overlap(const char *str1, const char *str2, int start1, int end1, int start2, int end2) {
@@ -100,36 +104,32 @@ void variate(struct chr *chrom, const char *org_seq, const char *alt_token, uint
 	uint64_t latest_core_index;
 	uint64_t first_core_after;	
 	find_boundaries(start_loc, end_loc, chrom, &latest_core_index, &first_core_after);
-	// TODO
 
-	/*
-	latest_core_index = MAX(latest_core_index, 3)-3;
-	first_core_after = MIN(first_core_after+3, (uint64_t)chrom->cores_size-1);
-	*/
-
-	if (latest_core_index < 3)  {
+	if (latest_core_index < MARGIN-1)  {
 		*failed_var_count = *failed_var_count + 1;
-		fprintf(out_err, "%s\t%ld\t%s\t%s\n", chrom->seq_name, start_loc, org_seq, alt_token);
+		fprintf(out_err, "VARIATE-MARGIN: %s\t%ld\t%s\t%s\n", chrom->seq_name, start_loc, org_seq, alt_token);
 		return;
 	}
-	if (first_core_after > (uint64_t) chrom->cores_size - 3) {
+	if (first_core_after+MARGIN-1 >= (uint64_t)chrom->cores_size) {
 		*failed_var_count = *failed_var_count + 1;
-		fprintf(out_err, "%s\t%ld\t%s\t%s\n", chrom->seq_name, start_loc, org_seq, alt_token);
+		fprintf(out_err, "VARIATE-MARGIN: %s\t%ld\t%s\t%s\n", chrom->seq_name, start_loc, org_seq, alt_token);
 		return;
 	}
 
-	latest_core_index -= 3;
-	first_core_after += 3;
+	if (chrom->cores[latest_core_index].end >= start_loc || chrom->cores[latest_core_index+1].end < start_loc) {
+		*failed_var_count = *failed_var_count + 1;
+		fprintf(out_err, "VARIATE-BOUNDARY: Incorrect boundary found.\n");
+		return;
+	}
 
+	latest_core_index -= MARGIN-1;
+	first_core_after += MARGIN-1;
 
 	// get the chromosome
     uint64_t marginal_start = chrom->cores[latest_core_index].start; // start of variation
     uint64_t marginal_end = chrom->cores[first_core_after].end; // end of variation
 
-	// TODO
 	// for loop from marginal_start to start_loc the check N
-	// for loop from start_ to marginal_end the check N
-
 	for (uint64_t i = marginal_start; i < start_loc; i++) {
 		if (chrom->seq[i] == 'N') {
 			*failed_var_count = *failed_var_count + 1;
@@ -137,7 +137,7 @@ void variate(struct chr *chrom, const char *org_seq, const char *alt_token, uint
 			return;
 		}
 	}
-
+	// for loop from start_ to marginal_end the check N
 	for (uint64_t i = end_loc; i < marginal_end; i++) {
 		if (chrom->seq[i] == 'N') {
 			*failed_var_count = *failed_var_count + 1;
@@ -146,9 +146,6 @@ void variate(struct chr *chrom, const char *org_seq, const char *alt_token, uint
 		}
 	}
 
-	// check if there is any N in subseq
-	// if there is free(subseg); args->failed++; return;
-
     uint64_t before_len = start_loc-marginal_start;
     uint64_t alt_len = strlen(alt_token);
     uint64_t after_len = marginal_end-end_loc;
@@ -156,7 +153,8 @@ void variate(struct chr *chrom, const char *org_seq, const char *alt_token, uint
 
     char *subseq = (char *)malloc(total_len+1); // +1 for null terminator
     if (subseq == NULL) {
-        fprintf(stderr, "Failed to allocate memory for variated string %ld.\n", total_len);
+		*failed_var_count = *failed_var_count + 1;
+        fprintf(out_err, "VARIATE-SUBSEQ: Failed to allocate memory for variated string %ld.\n", total_len);
         return;
     }
 
@@ -169,33 +167,18 @@ void variate(struct chr *chrom, const char *org_seq, const char *alt_token, uint
 	init_lps_offset(&substr, subseq, total_len, marginal_start);
 	lps_deepen(&substr, lcp_level);
 
-	printf("Chr cores first 3: \n");
-	for (uint64_t i=latest_core_index; i<latest_core_index+3; i++) {
-		printf("core: %u, index: %ld\n", chrom->cores[i].label, chrom->cores[i].start);
-	}
-		printf("Chr cores last 3: \n");
-	for (uint64_t i=first_core_after-2; i<=first_core_after; i++) {
-		printf("core: %u, index: %ld\n", chrom->cores[i].label, chrom->cores[i].start);
-	}
+	uint64_t debug_latest_core_index = latest_core_index;
+	uint64_t debug_first_core_after = first_core_after;
 
-	printf("Alt Cores first 3: \n");
-	for (int i=0; i<3; i++) {
-		printf("core: %u, index: %ld\n", substr.cores[i].label, substr.cores[i].start);
-	}
-	printf("Alt Cores last 3: \n");
-	for (int i=substr.size-3; i<substr.size; i++) {
-		printf("core: %u, index: %ld\n", substr.cores[i].label, substr.cores[i].start-alt_len+strlen(org_seq));
-	}
+	int debug = 0;
 
 	// refine start
 	// we are using the locations (start) of the cores for the refinements,
 	// and matching the ones that are identified in both alt and org sequences.
 	int starting_point = 0; 			// the newly created cores' starting index in lps cores array
-	while (chrom->cores[latest_core_index].end<start_loc) {
-		if (chrom->cores[latest_core_index].label == substr.cores[starting_point].label) {
-			if (chrom->cores[latest_core_index].start != substr.cores[starting_point].start) {
-				printf("invalid case happened.\n");
-			}
+	while (chrom->cores[latest_core_index].end < start_loc) {
+		if (chrom->cores[latest_core_index].start == substr.cores[starting_point].start &&
+			chrom->cores[latest_core_index].label == substr.cores[starting_point].label) {
 			break; // found first match
 		} else if (chrom->cores[latest_core_index].start < substr.cores[starting_point].start) {
 			latest_core_index++;
@@ -204,47 +187,80 @@ void variate(struct chr *chrom, const char *org_seq, const char *alt_token, uint
 		}
 	}
 	// go until there is a mismatch
-	while (chrom->cores[latest_core_index].end<start_loc && chrom->cores[latest_core_index].label == substr.cores[starting_point].label) {
-		if (chrom->cores[latest_core_index].start != substr.cores[starting_point].start) {
-			printf("invalid case happened.\n");
-		}
+	while ( chrom->cores[latest_core_index].end<start_loc && 
+			chrom->cores[latest_core_index].label == substr.cores[starting_point].label &&
+			chrom->cores[latest_core_index].start == substr.cores[starting_point].start) {
 		latest_core_index++;
 		starting_point++;
 	}
 	latest_core_index--; // as there should be at least one match
-	const struct simple_core *splitting_point = &(chrom->cores[latest_core_index]);
+	const struct simple_core *splitting_core = &(chrom->cores[latest_core_index]);
+
+	if (splitting_core->label != substr.cores[starting_point-1].label ||
+		splitting_core->start != substr.cores[starting_point-1].start) {
+		fprintf(out_err, "VARIATE-START: Something wrong with starting point\n");
+		debug = 1;
+	}
 
 	// refine end
 	int ending_point = substr.size-1; 	// the newly created cores' ending index in lps cores array
-	while (end_loc<=chrom->cores[latest_core_index].start) {
-		if (chrom->cores[first_core_after].label == substr.cores[ending_point].label) {
-			if (chrom->cores[first_core_after].start-strlen(org_seq)+alt_len != substr.cores[ending_point].start) {
-				printf("invalid case happened. chr_index: %ld, alt_index: %ld\n", chrom->cores[first_core_after].start-strlen(org_seq)+alt_len, substr.cores[ending_point].start);
-			}
+	while (end_loc <= chrom->cores[first_core_after].start) {
+		if (chrom->cores[first_core_after].label == substr.cores[ending_point].label &&
+			chrom->cores[first_core_after].start == substr.cores[ending_point].start-alt_len+strlen(org_seq)) {
 			break; // found first match
-		} else if (chrom->cores[first_core_after].start-strlen(org_seq)+alt_len < substr.cores[ending_point].start) {
+		} else if (chrom->cores[first_core_after].start < substr.cores[ending_point].start-alt_len+strlen(org_seq)) {
 			ending_point--;
 		} else {
 			first_core_after--;
 		}
 	}
 	// go until there is a mismatch
-	while (end_loc<=chrom->cores[latest_core_index].start && chrom->cores[first_core_after].label == substr.cores[ending_point].label) {
-		if (chrom->cores[first_core_after].start-strlen(org_seq)+alt_len != substr.cores[ending_point].start) {
-			printf("invalid case happened. chr_index: %ld, alt_index: %ld\n", chrom->cores[first_core_after].start-strlen(org_seq)+alt_len, substr.cores[ending_point].start);
-		}
+	while ( end_loc <= chrom->cores[first_core_after].start && 
+			chrom->cores[first_core_after].label == substr.cores[ending_point].label && 
+			chrom->cores[first_core_after].start == substr.cores[ending_point].start-alt_len+strlen(org_seq)) {
 		first_core_after--;
 		ending_point--;
 	}
 	first_core_after++;
 	const struct simple_core *merging_core = &(chrom->cores[first_core_after]);
 
+	if (merging_core->label != substr.cores[ending_point+1].label || 
+		merging_core->start != substr.cores[ending_point+1].start-alt_len+strlen(org_seq)) {
+		fprintf(out_err, "VARIATE-END: Something wrong with ending point\n");
+		debug = 1;
+	}
+
+	if (debug) {
+		fprintf(out_err, "Chr cores first %d: \n", MARGIN);
+		for (uint64_t i=debug_latest_core_index; i<=debug_latest_core_index+3; i++) {
+			fprintf(out_err, "core: %u, index: %ld\n", chrom->cores[i].label, chrom->cores[i].start);
+		}
+		fprintf(out_err, "Alt Cores first %d: \n", MARGIN);
+		for (int i=0; i<4; i++) {
+			fprintf(out_err, "core: %u, index: %ld\n", substr.cores[i].label, substr.cores[i].start);
+		}
+
+		fprintf(out_err, "Chr cores last %d: \n", MARGIN);
+		for (uint64_t i=debug_first_core_after-3; i<=debug_first_core_after; i++) {
+			fprintf(out_err, "core: %u, index: %ld\n", chrom->cores[i].label, chrom->cores[i].start);
+		}
+		fprintf(out_err, "Alt Cores last %d: \n", MARGIN);
+		for (int i=substr.size-4; i<substr.size; i++) {
+			fprintf(out_err, "core: %u, index: %ld\n", substr.cores[i].label, substr.cores[i].start-alt_len+strlen(org_seq));
+		}
+
+		fprintf(out_err, "\n");
+		
+		*failed_var_count = *failed_var_count + 1;
+		return;
+	}
+
 	uint64_t id = *core_id_index;
 
 	// print first splitting node and link from reference graph
 	print_seq(id, subseq+substr.cores[starting_point].start-marginal_start, substr.cores[starting_point].end-substr.cores[starting_point].start, "VAR", substr.cores[starting_point].start, 1, out);
 	id++;
-	print_link(splitting_point->id, '+', id-1, '+', (splitting_point->end-substr.cores[starting_point].start), out);
+	print_link(splitting_core->id, '+', id-1, '+', (splitting_core->end-substr.cores[starting_point].start), out);
 	
 	for (int i=starting_point+1; i<=ending_point; i++) {
 		print_seq(id, subseq + substr.cores[i].start - marginal_start, substr.cores[i].end - substr.cores[i].start, "VAR", substr.cores[i].start, 1, out);
@@ -252,21 +268,12 @@ void variate(struct chr *chrom, const char *org_seq, const char *alt_token, uint
 		id++;
 	}
 
-	// TODO find overlap at the end
-	// print merging link to the reference grpah
 	uint64_t overlap = 0;
 	//ending point and merging_core
-
-	// str1 = subseq[substr.cores[ending_point].start : substr.core[ending_point].end]
-	// str2 = chrom->seq[merging_core->start : merging_core->end]
-	// suffix_to_prefix_overlap(str1, str2)
-
 	int overlap_start = substr.cores[ending_point].start - marginal_start;
 	int overlap_end = substr.cores[ending_point].end - marginal_start;
 
-
-	overlap = suffix_to_prefix_overlap(subseq, chrom->seq, overlap_start, overlap_end, 
-		merging_core->start, merging_core->end);
+	overlap = suffix_to_prefix_overlap(subseq, chrom->seq, overlap_start, overlap_end, merging_core->start, merging_core->end);
 
 	print_link(id-1, '+', merging_core->id, '+', overlap, out);
 
@@ -275,6 +282,4 @@ void variate(struct chr *chrom, const char *org_seq, const char *alt_token, uint
 	free_lps(&substr);
 
 	free(subseq);
-
-	printf("\n\n");
 }

@@ -5,6 +5,7 @@
 #include "lps.h"
 #include <stdio.h>
 #include <string.h>
+#include <math.h>
 
 void read_fasta(struct opt_arg *args, struct ref_seq *seqs);
 

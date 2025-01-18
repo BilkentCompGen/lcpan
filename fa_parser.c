@@ -1,34 +1,65 @@
 #include "fa_parser.h"
 
-void process_chrom(char *sequence, size_t seq_size, int lcp_level, struct chr *chrom, uint64_t *core_id_index) {
+void process_chrom(char *sequence, uint64_t seq_size, int lcp_level, struct chr *chrom, uint64_t *core_id_index) {
     uint64_t id = *core_id_index;
 
-    struct lps str;
-    init_lps(&str, sequence, seq_size);
-    lps_deepen(&str, lcp_level);
+    uint64_t estimated_core_size = (int)(seq_size / pow(1.5, lcp_level));
+    chrom->cores = (struct simple_core*)malloc(estimated_core_size * sizeof(struct simple_core));
+    chrom->cores_size = 0;
 
-    chrom->cores_size = str.size;
-    chrom->cores = (struct simple_core *)malloc((chrom->cores_size)*sizeof(struct simple_core));
+    uint64_t index = 0;
+    uint64_t last_core_index = 0;
 
-    for (int i=0; i<str.size; i++) {
-        chrom->cores[i].id = id;
-        chrom->cores[i].start = str.cores[i].start;
-        chrom->cores[i].end = str.cores[i].end;
-        chrom->cores[i].label = str.cores[i].label;
-        id++;
+    while (index < seq_size) {
+        while (index < seq_size && sequence[index] == 'N') {
+            index++;
+        }
+        uint64_t end = index;
+        
+        while (end < seq_size && sequence[end] != 'N') {
+            end++;
+        }
+
+        struct lps str;
+        init_lps_offset(&str, sequence+index, end-index, index);
+        lps_deepen(&str, lcp_level);
+
+        // chrom->cores = (struct simple_core *)malloc((chrom->cores_size)*sizeof(struct simple_core));
+
+        for (int i=0; i<str.size; i++) {
+            chrom->cores[last_core_index].id = id;
+            chrom->cores[last_core_index].start = str.cores[i].start;
+            chrom->cores[last_core_index].end = str.cores[i].end;
+            chrom->cores[last_core_index].label = str.cores[i].label;
+            id++;
+            last_core_index++;
+        }
+
+        chrom->cores_size = last_core_index;
+        index = end;
+
+        free_lps(&str); 
+    }
+
+    struct simple_core *temp = (struct simple_core*)realloc(chrom->cores, chrom->cores_size * sizeof(struct simple_core));
+
+    if (temp != NULL) {
+        chrom->cores = temp;
     }
 
     *core_id_index = id;
-    free_lps(&str);
+    
 }
 
 void read_fasta(struct opt_arg *args, struct ref_seq *seqs) {
+
+    printf("[INFO] Started processing reference file.\n");
 
     // read index (fai) file to get chromosome count and allocate space for chromosomes for later processing
     char line[1024];
     FILE *idx = fopen(args->fasta_fai_path, "r");
     if (idx == NULL) {
-        fprintf(stderr, "Couldn't open file %s\n", args->fasta_fai_path);
+        fprintf(stderr, "REF: Couldn't open file %s\n", args->fasta_fai_path);
         exit(EXIT_FAILURE);
     }
     
@@ -39,14 +70,14 @@ void read_fasta(struct opt_arg *args, struct ref_seq *seqs) {
     }
 
     if (chrom_index == 0) {
-        fprintf(stderr, "Index file is empty.\n");
+        fprintf(stderr, "REF: Index file is empty.\n");
         exit(EXIT_FAILURE);
     }
 
     seqs->size = chrom_index;
     seqs->chrs = (struct chr *)malloc(chrom_index*sizeof(struct chr));
     if (seqs->chrs == NULL) {
-        fprintf(stderr, "Couldn't allocate memory to ref sequences\n");
+        fprintf(stderr, "REF: Couldn't allocate memory to ref sequences\n");
         exit(EXIT_FAILURE);
     }
 
@@ -68,7 +99,7 @@ void read_fasta(struct opt_arg *args, struct ref_seq *seqs) {
         
         seqs->chrs[chrom_index].seq = (char *)malloc(seqs->chrs[chrom_index].seq_size);
         if (seqs->chrs[chrom_index].seq == NULL) {
-            fprintf(stderr, "Couldn't allocate memory to chromosome string.\n");
+            fprintf(stderr, "REF: Couldn't allocate memory to chromosome string.\n");
             exit(EXIT_FAILURE);
         }
         chrom_index++;
@@ -79,7 +110,7 @@ void read_fasta(struct opt_arg *args, struct ref_seq *seqs) {
     // move to read reference file
     FILE *ref = fopen(args->fasta_path, "r");
     if (ref == NULL) {
-        fprintf(stderr, "Couldn't open file %s\n", args->fasta_path);
+        fprintf(stderr, "REF: Couldn't open file %s\n", args->fasta_path);
         exit(EXIT_FAILURE);
     }
 
@@ -111,4 +142,6 @@ void read_fasta(struct opt_arg *args, struct ref_seq *seqs) {
     }
 
     fclose(ref);
+
+    printf("[INFO] Input file processing ended.\n");
 }

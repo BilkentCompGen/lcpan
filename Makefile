@@ -14,7 +14,7 @@ LCPTOOLS_CXXFLAGS := -I$(CURRENT_DIR)/lcptools/include
 LCPTOOLS_LDFLAGS := -L$(CURRENT_DIR)/lcptools/lib -llcptools -Wl,-rpath,$(CURRENT_DIR)/lcptools/lib -lz
 
 $(TARGET): $(OBJS)
-	$(GXX) $(CXXFLAGS) $(LCPTOOLS_CXXFLAGS) -o $@ $^ $(LCPTOOLS_LDFLAGS)
+	$(GXX) $(CXXFLAGS) $(LCPTOOLS_CXXFLAGS) -o $@ $^ $(LCPTOOLS_LDFLAGS) -lm
 	rm $(OBJS)
 
 %.o: %.c

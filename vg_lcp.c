@@ -66,14 +66,12 @@ int main(int argc, char* argv[]) {
 
     FILE *out_err = fopen("out.err", "w");
     if (out_err == NULL) {
-        fprintf(stderr, "Couldn't open output file %s\n", "out_err");
+        fprintf(stderr, "Couldn't open error log file\n");
         exit(EXIT_FAILURE);
     }
-    fprintf(out_err, "CHR\tIDX\tORG\tALT\n");
 
     int failed_var_count = 0;
     int invalid_line_count = 0;
-			 
 
     read_vcf(&args, &seqs, &failed_var_count, &invalid_line_count, out, out_err);
 
@@ -83,8 +81,8 @@ int main(int argc, char* argv[]) {
     free_opt_arg(&args);
     free_ref_seq(&seqs);
 
-    printf("Total number of failed variations: %d\n", failed_var_count);
-    printf("Total number of invalid lines in the vcf file: %d\n", invalid_line_count);
+    printf("[INFO] Total number of failed variations: %d\n", failed_var_count);
+    printf("[INFO] Total number of invalid lines in the vcf file: %d\n", invalid_line_count);
     
     return 0;
 }

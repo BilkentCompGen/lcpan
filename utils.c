@@ -1,56 +1,5 @@
 #include "utils.h"
 
-void print_seq(uint64_t id, const char *seq, int seq_len, const char *seq_name, int offset, int rank, FILE *out) {
-	fprintf(out, "S\ts%ld\t", id); 
-    fwrite(seq, 1, seq_len, out); 
-    fprintf(out, "\tSN:Z:%s\tSO:i:%d\tSR:i:%d\n", seq_name, offset, rank); 
-}
-
-void print_link(uint64_t id1, char sign1, uint64_t id2, char sign2, int overlap, FILE *out) {
-	fprintf(out, "L\ts%ld\t%c\ts%ld\t%c\t%dM\n", id1, sign1, id2, sign2, overlap);
-}
-
-void print_ref_seq(struct ref_seq *seqs, FILE *out) {
-
-	printf("[INFO] Writing reference seq to output file.\n");
-
-	// iterate through each chromosome
-	for (int i=0; i<seqs->size; i++) {
-		const char *seq_name = seqs->chrs[i].seq_name;
-		const char *seq = seqs->chrs[i].seq;
-		
-		if (seqs->chrs[i].cores_size) {
-			uint64_t start = seqs->chrs[i].cores[0].start;
-			uint64_t end = seqs->chrs[i].cores[0].end;
-			int seq_len = (int)(end-start);
-			print_seq(seqs->chrs[i].cores[0].id, seq+start, seq_len, seq_name, start, 0, out);
-		}
-		
-		for (int j=1; j<seqs->chrs[i].cores_size; j++) {
-			uint64_t start = seqs->chrs[i].cores[j].start;
-			uint64_t end = seqs->chrs[i].cores[j].end;
-			int seq_len = (int)(end-start);
-			
-			print_seq(seqs->chrs[i].cores[j].id, seq+start, seq_len, seq_name, start, 0, out);
-			print_link(seqs->chrs[i].cores[j-1].id, '+', seqs->chrs[i].cores[j].id, '+', (int)(seqs->chrs[i].cores[j-1].end-seqs->chrs[i].cores[j].start), out);
-		}
-	}
-
-	printf("[INFO] Writing process completed.\n");
-}
-
-int suffix_to_prefix_overlap(const char *str1, const char *str2, int start1, int end1, int start2, int end2) {
-    int len_str1 = end1 - start1;
-    int len_str2 = end2 - start2;
-    int max_overlap = 0;
-
-    for (int i = 1; i <= len_str1 && i <= len_str2; i++) {
-        if (strncmp(str1 + end1 - i, str2 + start2, i) == 0) {
-            max_overlap = i;
-        }
-    }
-    return max_overlap;
-}
 
 void free_opt_arg(struct opt_arg *args) {
     free(args->fasta_fai_path);
@@ -67,6 +16,67 @@ void free_ref_seq(struct ref_seq *seqs) {
 		free(seqs->chrs);
 		seqs->size = 0;
 	}
+}
+
+void print_seq(uint64_t id, const char *seq, int seq_len, const char *seq_name, int offset, int rank, int is_rgfa, FILE *out) {
+	fprintf(out, "S\ts%ld\t", id); 
+    fwrite(seq, 1, seq_len, out); 
+	if (is_rgfa) {
+		fprintf(out, "\tSN:Z:%s\tSO:i:%d\tSR:i:%d\n", seq_name, offset, rank); 
+	} else {
+		fprintf(out, "\n");
+	}
+}
+
+void print_link(uint64_t id1, char sign1, uint64_t id2, char sign2, uint64_t overlap, FILE *out) {
+    fprintf(out, "L\ts%ld\t%c\ts%ld\t%c\t%ldM\n", id1, sign1, id2, sign2, overlap);
+}
+
+void print_ref_seq(struct ref_seq *seqs, int is_rgfa, FILE *out) {
+
+	printf("[INFO] Writing reference seq to output file.\n");
+
+	// iterate through each chromosome
+	for (int i=0; i<seqs->size; i++) {
+		const char *seq_name = seqs->chrs[i].seq_name;
+		const char *seq = seqs->chrs[i].seq;
+		
+		if (seqs->chrs[i].cores_size) {
+			uint64_t start = seqs->chrs[i].cores[0].start;
+			uint64_t end = seqs->chrs[i].cores[0].end;
+			int seq_len = (int)(end-start);
+			print_seq(seqs->chrs[i].cores[0].id, seq+start, seq_len, seq_name, start, 0, is_rgfa, out);
+		}
+		
+		for (int j=1; j<seqs->chrs[i].cores_size; j++) {
+			uint64_t start = seqs->chrs[i].cores[j].start;
+			uint64_t end = seqs->chrs[i].cores[j].end;
+			int seq_len = (int)(end-start);
+			
+			print_seq(seqs->chrs[i].cores[j].id, seq+start, seq_len, seq_name, start, 0, is_rgfa, out);
+			// there might be graps ('N') in genome, hence
+			if (seqs->chrs[i].cores[j-1].end > seqs->chrs[i].cores[j].start) {
+				print_link(seqs->chrs[i].cores[j-1].id, '+', seqs->chrs[i].cores[j].id, '+', (int)(seqs->chrs[i].cores[j-1].end-seqs->chrs[i].cores[j].start), out);
+			} else {
+				print_link(seqs->chrs[i].cores[j-1].id, '+', seqs->chrs[i].cores[j].id, '+', 0, out);
+			}
+		}
+	}
+
+	printf("[INFO] Writing process completed.\n");
+}
+
+uint64_t suffix_to_prefix_overlap(const char *str1, const char *str2, uint64_t start1, uint64_t end1, uint64_t start2, uint64_t end2) {
+    uint64_t len_str1 = end1 - start1;
+    uint64_t len_str2 = end2 - start2;
+    uint64_t max_overlap = 0;
+
+    for (uint64_t i = 1; i <= len_str1 && i <= len_str2; i++) {
+        if (strncmp(str1 + end1 - i, str2 + start2, i) == 0) {
+            max_overlap = i;
+        }
+    }
+    return max_overlap;
 }
 
 void find_boundaries(uint64_t start_loc, uint64_t end_loc, struct chr *chrom, uint64_t *latest_core_index, uint64_t *first_core_after) {
@@ -97,7 +107,7 @@ void find_boundaries(uint64_t start_loc, uint64_t end_loc, struct chr *chrom, ui
 	}
 }
 
-void variate(struct chr *chrom, const char *org_seq, const char *alt_token, uint64_t start_loc, int lcp_level, uint64_t *core_id_index, int* failed_var_count, FILE *out, FILE *out_err) {
+void variate(struct chr *chrom, const char *org_seq, const char *alt_token, uint64_t start_loc, int lcp_level, uint64_t *core_id_index, int* failed_var_count, int* bubble_count, int is_rgfa, FILE *out, FILE *out_err) {
 	
 	// decide on boundaries
 	uint64_t end_loc = start_loc+strlen(org_seq);
@@ -198,8 +208,14 @@ void variate(struct chr *chrom, const char *org_seq, const char *alt_token, uint
 	latest_core_index--; // as there should be at least one match
 	const struct simple_core *splitting_core = &(chrom->cores[latest_core_index]);
 
+	// if (splitting_core->label != substr.cores[starting_point-1].label ||
+	// 	splitting_core->start != substr.cores[starting_point-1].start) {
+	// 	fprintf(out_err, "VARIATE-START: Something wrong with starting point\n");
+	// 	debug = 1;
+	// }
 	if (splitting_core->label != substr.cores[starting_point-1].label ||
-		splitting_core->start != substr.cores[starting_point-1].start) {
+        splitting_core->start != substr.cores[starting_point-1].start ||
+		strncmp(chrom->seq+splitting_core->start, subseq+substr.cores[starting_point-1].start-marginal_start, splitting_core->end-splitting_core->start) != 0) {
 		fprintf(out_err, "VARIATE-START: Something wrong with starting point\n");
 		debug = 1;
 	}
@@ -232,6 +248,18 @@ void variate(struct chr *chrom, const char *org_seq, const char *alt_token, uint
 		debug = 1;
 	}
 
+    uint64_t overlap = 0;
+	//ending point and merging_core
+	uint64_t overlap_start = substr.cores[ending_point].start - marginal_start;
+	uint64_t overlap_end = substr.cores[ending_point].end - marginal_start;
+
+	overlap = suffix_to_prefix_overlap(subseq, chrom->seq, overlap_start, overlap_end, merging_core->start, merging_core->end);
+
+    if (overlap == 0) {
+        fprintf(out_err, "VARIATE-END: Something wrong with ending point\n");
+		debug = 1;
+    }
+
 	if (debug) {
 		fprintf(out_err, "Chr cores first %d: \n", MARGIN);
 		for (uint64_t i=debug_latest_core_index; i<=debug_latest_core_index+3; i++) {
@@ -260,26 +288,20 @@ void variate(struct chr *chrom, const char *org_seq, const char *alt_token, uint
 	uint64_t id = *core_id_index;
 
 	// print first splitting node and link from reference graph
-	print_seq(id, subseq+substr.cores[starting_point].start-marginal_start, substr.cores[starting_point].end-substr.cores[starting_point].start, "VAR", substr.cores[starting_point].start, 1, out);
+	print_seq(id, subseq+substr.cores[starting_point].start-marginal_start, substr.cores[starting_point].end-substr.cores[starting_point].start, "VAR", substr.cores[starting_point].start, 1, is_rgfa, out);
 	id++;
 	print_link(splitting_core->id, '+', id-1, '+', (splitting_core->end-substr.cores[starting_point].start), out);
-	
+
 	for (int i=starting_point+1; i<=ending_point; i++) {
-		print_seq(id, subseq + substr.cores[i].start - marginal_start, substr.cores[i].end - substr.cores[i].start, "VAR", substr.cores[i].start, 1, out);
+		print_seq(id, subseq + substr.cores[i].start - marginal_start, substr.cores[i].end - substr.cores[i].start, "VAR", substr.cores[i].start, 1, is_rgfa, out);
 		print_link(id-1, '+', id, '+', (substr.cores[i-1].end-substr.cores[i].start), out);
 		id++;
 	}
 
-	uint64_t overlap = 0;
-	//ending point and merging_core
-	int overlap_start = substr.cores[ending_point].start - marginal_start;
-	int overlap_end = substr.cores[ending_point].end - marginal_start;
-
-	overlap = suffix_to_prefix_overlap(subseq, chrom->seq, overlap_start, overlap_end, merging_core->start, merging_core->end);
-
 	print_link(id-1, '+', merging_core->id, '+', overlap, out);
-
+	
 	*core_id_index = id;
+	*bubble_count = *bubble_count + 1;
 	
 	free_lps(&substr);
 

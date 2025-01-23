@@ -7,10 +7,11 @@ struct opt_arg {
 	char *fasta_path;		/**< Path to the input FASTA file. */
 	char *fasta_fai_path;	/**< Path to the input FASTA  index file. */
 	char *vcf_path;			/**< Path to the input VCF file. */
-	char *rgfa_path; 		/**< Path to the output rGFA file. */
+	char *gfa_path; 		/**< Path to the output rGFA/GFA file. */
 	uint64_t core_id_index; /**< Global id index for LCP cores. */
 	int lcp_level;			/**< The LCP level to be used. */
 	int bubble_count;	 	/**< Number of bubbles created in the graph. */
+	int is_rgfa;			/**< Boolean argument to output rGFA or GFA. */
 };
 
 struct simple_core {

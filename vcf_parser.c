@@ -1,6 +1,6 @@
 #include "vcf_parser.h"
 
-void read_vcf(struct opt_arg *args, struct ref_seq *seqs, int* failed_var_count, int* invalid_line_count, FILE *out, FILE *out_err) {
+void read_vcf(struct opt_arg *args, struct ref_seq *seqs, int* failed_var_count, int* invalid_line_count, int* bubble_count, FILE *out, FILE *out_err) {
     
     printf("[INFO] Started processing variation file.\n");
     
@@ -15,8 +15,12 @@ void read_vcf(struct opt_arg *args, struct ref_seq *seqs, int* failed_var_count,
 
     while (fgets(line, current_size, file) != NULL) {
         while (strlen(line) == current_size - 1 && line[current_size - 2] != '\n') {
+            long current_position = ftell(file);
+            fseek(file, current_position - (current_size - 1), SEEK_SET); // last char is '\0'
+            
             current_size *= 2;
             line = (char *)realloc(line, current_size);
+            continue; // retry to read line
         }
 
         line[strlen(line)-1] = '\0';
@@ -72,7 +76,7 @@ void read_vcf(struct opt_arg *args, struct ref_seq *seqs, int* failed_var_count,
         char *alt_token = strtok(alt, ","); // split ALT alleles by comma
         
         while (alt_token != NULL) {
-            variate(&(seqs->chrs[chrom_index]), seq, alt_token, offset, args->lcp_level, &(args->core_id_index), failed_var_count, out, out_err);
+            variate(&(seqs->chrs[chrom_index]), seq, alt_token, offset, args->lcp_level, &(args->core_id_index), failed_var_count, bubble_count, args->is_rgfa, out, out_err);
             alt_token = strtok(NULL, ",");
         }
     }

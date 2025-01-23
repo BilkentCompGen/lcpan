@@ -1,61 +1,53 @@
 # `VG_LCP` (Variation Graph Construction Using Locally Consistent Parsing)  
 
-This repository provides an implementation of a tool for constructing variation graphs using Locally Consistent Parsing (LCP) tool. It processes genomic sequences from FASTA files, integrates variations from VCF files, and generates variation graphs in rGFA format for genome assembly and analysis.
+This repository provides an implementation of a tool for constructing variation graphs using Locally Consistent Parsing (LCP) tool. It processes genomic sequences from FASTA files, integrates variations from VCF files, and generates variation graphs in rGFA/GFA format for genome assembly and analysis.
 
 ## Features
 
 - **Efficient Variation Graph Construction**: Utilizes LCP cores to represent sequences and variations.
 - **Variation Representation**: Creates bubble structures in the graph to represent sequence differences.
-- **rGFA Output**: Generates graphs in rGFA format, suitable for graph-based genome analysis.
+- **rGFA/GFA Output**: Generates graphs in rGFA/GFA format, suitable for graph-based genome analysis.
 
 ## Installation
 
 Clone this repository and use the provided Makefile to build the project.  
 
-1. Clone the repository:
-    ```sh
-    git clone https://github.com/EgeSrvn/lcp_vg.git
-    cd vg-lcp
-    ```
+```sh
+git clone https://github.com/BilkentCompGen/lcp_vg.git
+cd lcp_vg
 
-2. Install the LCP Tool Repository
-    ```sh
-    make install
-    ```
+# install lcptools
+make install
 
-3. Build the project:
-    ```sh
-    make compile
-    ```
+# compile lcp_vg
+make
+```
 
-3. Clean the build (if needed):
-    ```sh
-    make clean
-    ```
-
-4. Uninstall the LCP Tool Repository
-    ```sh
-    make uninstall
-    ```
+You can run `make clean` command to remove cleanup binaries and the executable.
 
 ## Usage
 
 Run the tool using the following command-line options:
 
 ```sh
-./vg_lcp -f <fasta_file> -v <vcf_file> -r <output_rgfa_file> -l <lcp_level>
+./lcp_vg -f <fasta_file> -v <vcf_file> -r <output_rgfa_file> -l <lcp_level> [--rgfa | --gfa]
 ```
 
 - `-f`: Path to the input FASTA file.
 - `-v`: Path to the input VCF file.
 - `-r`: Path to the output rGFA file.
+- `--gfa`: Output as graphical fragment assembly.
+- `--rgfa`: Output as reference gfa [default].
 - `-l`: LCP parsing level (integer).
 
 ### Example
 
 ```sh
-./vg_lcp -f genome.fasta -v variations.vcf -r output.rgfa -l 4
+./lcp_vg -f genome.fasta -v variations.vcf -r output.rgfa -l 4
 ```
 
 This command constructs a variation graph for the input FASTA and VCF files, applying LCP parsing at level 4, and saves the result to `output.rgfa`.
 
+## Licence
+
+`lcp_vg` is released under the BSD 3-Clause License, which allows for redistribution and use in source and binary forms, with or without modification, under certain conditions. For more detailed terms, please refer to the [license file](https://github.com/BilkentCompGen/lcp_vg/blob/main/LICENSE).

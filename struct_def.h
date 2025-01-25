@@ -12,6 +12,7 @@ struct opt_arg {
 	int lcp_level;			/**< The LCP level to be used. */
 	int bubble_count;	 	/**< Number of bubbles created in the graph. */
 	int is_rgfa;			/**< Boolean argument to output rGFA or GFA. */
+    int no_overlap;         /**< Boolean argument to decide whether allow overlap. */
 };
 
 struct simple_core {

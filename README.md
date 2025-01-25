@@ -38,6 +38,7 @@ Run the tool using the following command-line options:
 - `-r`: Path to the output rGFA file.
 - `--gfa`: Output as graphical fragment assembly.
 - `--rgfa`: Output as reference gfa [default].
+- `-N`: Output non-overlapping gfa.
 - `-l`: LCP parsing level (integer).
 
 ### Example

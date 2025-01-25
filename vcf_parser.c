@@ -76,7 +76,7 @@ void read_vcf(struct opt_arg *args, struct ref_seq *seqs, int* failed_var_count,
         char *alt_token = strtok(alt, ","); // split ALT alleles by comma
         
         while (alt_token != NULL) {
-            variate(&(seqs->chrs[chrom_index]), seq, alt_token, offset, args->lcp_level, &(args->core_id_index), failed_var_count, bubble_count, args->is_rgfa, out, out_err);
+            variate(&(seqs->chrs[chrom_index]), seq, alt_token, offset, args->lcp_level, &(args->core_id_index), failed_var_count, bubble_count, args->is_rgfa, args->no_overlap, out, out_err);
             alt_token = strtok(NULL, ",");
         }
     }

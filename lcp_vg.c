@@ -38,7 +38,7 @@ int main(int argc, char* argv[]) {
         exit(EXIT_FAILURE);
     }
 
-    print_ref_seq(&seqs, args.is_rgfa, out);
+    print_ref_seq(&seqs, args.is_rgfa, args.no_overlap, out);
 
     FILE *out_err = fopen("out.err", "w");
     if (out_err == NULL) {

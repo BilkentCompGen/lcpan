@@ -14,6 +14,7 @@ void summarize(struct opt_arg *args) {
     printf("[INFO] VCF: %s\n", args->vcf_path);
     printf("[INFO] Output: %s\n", args->gfa_path);
     printf("[INFO] GFA: %s\n", args->is_rgfa ? "rGFA" : "GFA");
+    printf("[INFO] Non-Overlapping: %s\n", args->no_overlap ? "yes" : "no");
     printf("[INFO] LCP level: %d\n", args->lcp_level);
 }
 
@@ -29,6 +30,7 @@ void parse_opts(int argc, char* argv[], struct opt_arg *args) {
     args->lcp_level = DEFAULT_LCP_LEVEL;
     args->bubble_count = 0;
     args->is_rgfa = 1;
+    args->no_overlap = 0;
 
     int long_index;
     struct option long_options[] = {
@@ -41,7 +43,7 @@ void parse_opts(int argc, char* argv[], struct opt_arg *args) {
         {NULL, 0, NULL, 0}
     };
 
-    while ((opt = getopt_long(argc, argv, "f:v:l:o:", long_options, &long_index)) != -1) {
+    while ((opt = getopt_long(argc, argv, "f:v:l:o:N", long_options, &long_index)) != -1) {
         switch (opt) {
 		case 1:
 			args->fasta_path = optarg; // reference file
@@ -72,6 +74,9 @@ void parse_opts(int argc, char* argv[], struct opt_arg *args) {
             break;
         case 6:
             args->is_rgfa = 0;
+            break;
+        case 'N':
+            args->no_overlap = 1;
             break;
         default:
             fprintf(stderr, "Error parsing options\n");

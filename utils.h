@@ -34,14 +34,15 @@ void free_ref_seq(struct ref_seq *seqs);
  * Parsing (LCP) cores in rGFA/GFA format. The cores are printed as segments and
  * links, depending on the provided options.
  *
- * @param seqs     A pointer to the `ref_seq` structure containing the reference
- *                 sequences and their processed LCP cores.
- * @param is_rgfa  A flag indicating whether to print in rGFA format (1 for rGFA,
- *                 0 for GFA).
- * @param out      A file pointer to the output file where the formatted segments
- *                 and links will be written.
+ * @param seqs       A pointer to the `ref_seq` structure containing the reference
+ *                   sequences and their processed LCP cores.
+ * @param is_rgfa    A flag indicating whether to print in rGFA format (1 for rGFA,
+ *                   0 for GFA).
+ * @param no_overlap A flag indicating if the output should contains overlapping links. 
+ * @param out        A file pointer to the output file where the formatted segments
+ *                   and links will be written.
  */
-void print_ref_seq(struct ref_seq *seqs, int is_rgfa, FILE *out);
+void print_ref_seq(struct ref_seq *seqs, int is_rgfa, int no_overlap, FILE *out);
 
 /**
  * @brief Simulates an alternate sequence, extracts and refines LCP cores, and prints bubbles.
@@ -60,9 +61,10 @@ void print_ref_seq(struct ref_seq *seqs, int is_rgfa, FILE *out);
  * @param failed_var_count A pointer to an integer to count failed variations.
  * @param bubble_count     A pointer to an integer to count bubble structures.
  * @param is_rgfa          A flag indicating if the output should be in rGFA format.
+ * @param no_overlap       A flag indicating if the output should contains overlapping links. 
  * @param out              A file pointer for the output file to write results.
  * @param out_err          A file pointer for the error file to log issues.
  */
-void variate(struct chr *chrom, const char *org_seq, const char *alt_token, uint64_t start_loc, int lcp_level, uint64_t *core_id_index, int* failed_var_count, int* bubble_count, int is_rgfa, FILE *out, FILE *out_err);
+void variate(struct chr *chrom, const char *org_seq, const char *alt_token, uint64_t start_loc, int lcp_level, uint64_t *core_id_index, int* failed_var_count, int* bubble_count, int is_rgfa, int no_overlap, FILE *out, FILE *out_err);
 
 #endif

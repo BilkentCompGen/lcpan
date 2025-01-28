@@ -3,6 +3,7 @@
 
 #include "struct_def.h"
 #include "utils.h"
+#include "tpool.h"
 #include <stdio.h>
 #include <string.h>
 
@@ -23,13 +24,9 @@
  *                           failed variations.
  * @param invalid_line_count A pointer to an integer to store the count of 
  *                           invalid lines in the VCF file.
- * @param bubble_count       A pointer to an integer to store the count of
- *                           detected bubble structures.
- * @param out                A file pointer to the output file where the rGFA
- *                           format result will be logged.
  * @param out_err            A file pointer to the error file where errors and
  *                           invalid lines will be logged.
  */
-void read_vcf(struct opt_arg *args, struct ref_seq *seqs, int* failed_var_count, int* invalid_line_count, int* bubble_count, FILE *out, FILE *out_err);
+void read_vcf(struct opt_arg *args, struct ref_seq *seqs, int *failed_var_count, int *invalid_line_count, FILE *out_err);
 
 #endif

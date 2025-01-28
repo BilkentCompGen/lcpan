@@ -1,6 +1,5 @@
 #include "utils.h"
 
-
 void free_opt_arg(struct opt_arg *args) {
     free(args->fasta_fai_path);
 	// the rest of the args char * will be freed by getops. hence, no need to free them
@@ -121,7 +120,7 @@ void find_boundaries(uint64_t start_loc, uint64_t end_loc, struct chr *chrom, ui
 	}
 }
 
-void variate(struct chr *chrom, const char *org_seq, const char *alt_token, uint64_t start_loc, int lcp_level, uint64_t *core_id_index, int* failed_var_count, int* bubble_count, int is_rgfa, int no_overlap, FILE *out, FILE *out_err) {
+void variate(struct opt_arg *args, struct chr *chrom, const char *org_seq, const char *alt_token, uint64_t start_loc, int *failed_var_count, pthread_mutex_t *core_id_mutex, pthread_mutex_t *out_err_mutex, FILE *out, FILE *out_err) {
 	
 	// decide on boundaries
 	uint64_t end_loc = start_loc+strlen(org_seq);
@@ -130,19 +129,25 @@ void variate(struct chr *chrom, const char *org_seq, const char *alt_token, uint
 	find_boundaries(start_loc, end_loc, chrom, &latest_core_index, &first_core_after);
 
 	if (latest_core_index < MARGIN-1)  {
+        pthread_mutex_lock(out_err_mutex);
 		*failed_var_count = *failed_var_count + 1;
 		fprintf(out_err, "VARIATE-MARGIN: %s\t%ld\t%s\t%s\n", chrom->seq_name, start_loc, org_seq, alt_token);
+        pthread_mutex_unlock(out_err_mutex);
 		return;
 	}
 	if (first_core_after+MARGIN-1 >= (uint64_t)chrom->cores_size) {
+        pthread_mutex_lock(out_err_mutex);
 		*failed_var_count = *failed_var_count + 1;
 		fprintf(out_err, "VARIATE-MARGIN: %s\t%ld\t%s\t%s\n", chrom->seq_name, start_loc, org_seq, alt_token);
+        pthread_mutex_unlock(out_err_mutex);
 		return;
 	}
 
 	if (chrom->cores[latest_core_index].end >= start_loc || chrom->cores[latest_core_index+1].end < start_loc) {
+        pthread_mutex_lock(out_err_mutex);
 		*failed_var_count = *failed_var_count + 1;
 		fprintf(out_err, "VARIATE-BOUNDARY: Incorrect boundary found.\n");
+        pthread_mutex_unlock(out_err_mutex);
 		return;
 	}
 
@@ -156,19 +161,23 @@ void variate(struct chr *chrom, const char *org_seq, const char *alt_token, uint
 	// for loop from marginal_start to start_loc the check N
 	for (uint64_t i = marginal_start; i < start_loc; i++) {
 		if (chrom->seq[i] == 'N') {
+            pthread_mutex_lock(out_err_mutex);
 			*failed_var_count = *failed_var_count + 1;
 			fprintf(out_err, "The following variation couldn't be processed:\n");
 			fprintf(out_err, "CHROM: %s\tPOSITION: %ld\tORG: %s\tALT: %s\n\n", chrom->seq_name, start_loc, org_seq, alt_token);
+            pthread_mutex_unlock(out_err_mutex);
 			return;
 		}
 	}
 	// for loop from start_ to marginal_end the check N
 	for (uint64_t i = end_loc; i < marginal_end; i++) {
 		if (chrom->seq[i] == 'N') {
+            pthread_mutex_lock(out_err_mutex);
 			*failed_var_count = *failed_var_count + 1;
 			fprintf(out_err, "The following variation couldn't be processed:\n");
 			fprintf(out_err, "CHROM: %s\tPOSITION: %ld\tORG: %s\tALT: %s\n\n", chrom->seq_name, start_loc, org_seq, alt_token);
-			return;
+			pthread_mutex_unlock(out_err_mutex);
+            return;
 		}
 	}
 
@@ -179,8 +188,10 @@ void variate(struct chr *chrom, const char *org_seq, const char *alt_token, uint
 
     char *subseq = (char *)malloc(total_len+1); // +1 for null terminator
     if (subseq == NULL) {
+        pthread_mutex_lock(out_err_mutex);
 		*failed_var_count = *failed_var_count + 1;
         fprintf(out_err, "VARIATE-SUBSEQ: Failed to allocate memory for variated string %ld.\n", total_len);
+        pthread_mutex_unlock(out_err_mutex);
         return;
     }
 
@@ -191,7 +202,7 @@ void variate(struct chr *chrom, const char *org_seq, const char *alt_token, uint
 
 	struct lps substr;
 	init_lps_offset(&substr, subseq, total_len, marginal_start);
-	lps_deepen(&substr, lcp_level);
+	lps_deepen(&substr, args->lcp_level);
 
 	uint64_t debug_latest_core_index = latest_core_index;
 	uint64_t debug_first_core_after = first_core_after;
@@ -230,8 +241,10 @@ void variate(struct chr *chrom, const char *org_seq, const char *alt_token, uint
 	if (splitting_core->label != substr.cores[starting_point-1].label ||
         splitting_core->start != substr.cores[starting_point-1].start ||
 		strncmp(chrom->seq+splitting_core->start, subseq+substr.cores[starting_point-1].start-marginal_start, splitting_core->end-splitting_core->start) != 0) {
+        pthread_mutex_lock(out_err_mutex);
 		fprintf(out_err, "VARIATE-START: Something wrong with starting point\n");
 		debug = 1;
+        pthread_mutex_unlock(out_err_mutex);
 	}
 
 	// refine end
@@ -258,8 +271,10 @@ void variate(struct chr *chrom, const char *org_seq, const char *alt_token, uint
 
 	if (merging_core->label != substr.cores[ending_point+1].label || 
 		merging_core->start != substr.cores[ending_point+1].start-alt_len+strlen(org_seq)) {
+        pthread_mutex_lock(out_err_mutex);
 		fprintf(out_err, "VARIATE-END: Something wrong with ending point\n");
 		debug = 1;
+        pthread_mutex_unlock(out_err_mutex);
 	}
 
     uint64_t merging_overlap = 0;
@@ -270,11 +285,14 @@ void variate(struct chr *chrom, const char *org_seq, const char *alt_token, uint
 	merging_overlap = suffix_to_prefix_overlap(subseq, chrom->seq, overlap_start, overlap_end, merging_core->start, merging_core->end);
 
     if (merging_overlap == 0) {
+        pthread_mutex_lock(out_err_mutex);
         fprintf(out_err, "VARIATE-END: Something wrong with ending point\n");
 		debug = 1;
+        pthread_mutex_unlock(out_err_mutex);
     }
 
 	if (debug) {
+        pthread_mutex_lock(out_err_mutex);
 		fprintf(out_err, "Chr cores first %d: \n", MARGIN);
 		for (uint64_t i=debug_latest_core_index; i<=debug_latest_core_index+3; i++) {
 			fprintf(out_err, "core: %u, index: %ld\n", chrom->cores[i].label, chrom->cores[i].start);
@@ -296,10 +314,16 @@ void variate(struct chr *chrom, const char *org_seq, const char *alt_token, uint
 		fprintf(out_err, "\n");
 		
 		*failed_var_count = *failed_var_count + 1;
+        pthread_mutex_unlock(out_err_mutex);
 		return;
 	}
 
-	uint64_t id = *core_id_index;
+    pthread_mutex_lock(core_id_mutex);
+	uint64_t id = args->core_id_index;
+
+    args->core_id_index += 1 + ending_point - starting_point;
+    args->bubble_count += 1;
+    pthread_mutex_unlock(core_id_mutex);
 
 	// print first splitting node and link from reference graph	
 	
@@ -308,10 +332,10 @@ void variate(struct chr *chrom, const char *org_seq, const char *alt_token, uint
         int seq_start = substr.cores[starting_point].start-marginal_start;
         int seq_len = substr.cores[starting_point].end-substr.cores[starting_point].start;
         int start = substr.cores[starting_point].start;
-        int offset = no_overlap ? splitting_overlap : 0;
-        print_seq(id, subseq+seq_start+offset, seq_len-offset, "VAR", start+offset, 1, is_rgfa, out);
+        int offset = args->no_overlap ? splitting_overlap : 0;
+        print_seq(id, subseq+seq_start+offset, seq_len-offset, "VAR", start+offset, 1, args->is_rgfa, out);
         id++;
-	    print_link(splitting_core->id, '+', id-1, '+', splitting_overlap, no_overlap, out);
+	    print_link(splitting_core->id, '+', id-1, '+', splitting_overlap, args->no_overlap, out);
     } 
 
 	for (int i=starting_point+1; i<=ending_point; i++) {
@@ -319,16 +343,13 @@ void variate(struct chr *chrom, const char *org_seq, const char *alt_token, uint
         int seq_start = substr.cores[i].start-marginal_start;
         int seq_len = substr.cores[i].end-substr.cores[i].start;
         int start = substr.cores[i].start;
-        int offset = no_overlap ? overlap : 0;
-        print_seq(id, subseq+seq_start+offset, seq_len-offset, "VAR", start+offset, 1, is_rgfa, out);
-        print_link(id-1, '+', id, '+', overlap, no_overlap, out);
+        int offset = args->no_overlap ? overlap : 0;
+        print_seq(id, subseq+seq_start+offset, seq_len-offset, "VAR", start+offset, 1, args->is_rgfa, out);
+        print_link(id-1, '+', id, '+', overlap, args->no_overlap, out);
 		id++;
 	}
 
-	print_link(id-1, '+', merging_core->id, '+', merging_overlap, no_overlap, out);
-	
-	*core_id_index = id;
-	*bubble_count = *bubble_count + 1;
+	print_link(id-1, '+', merging_core->id, '+', merging_overlap, args->no_overlap, out);
 	
 	free_lps(&substr);
 

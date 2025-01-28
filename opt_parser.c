@@ -16,6 +16,7 @@ void summarize(struct opt_arg *args) {
     printf("[INFO] GFA: %s\n", args->is_rgfa ? "rGFA" : "GFA");
     printf("[INFO] Non-Overlapping: %s\n", args->no_overlap ? "yes" : "no");
     printf("[INFO] LCP level: %d\n", args->lcp_level);
+    printf("[INFO] Thread number: %d\n", args->thread_number);
 }
 
 void parse_opts(int argc, char* argv[], struct opt_arg *args) {
@@ -28,6 +29,7 @@ void parse_opts(int argc, char* argv[], struct opt_arg *args) {
 	int opt;
     args->core_id_index = 0;
     args->lcp_level = DEFAULT_LCP_LEVEL;
+    args->thread_number = DEFAULT_THREAD_NUMBER;
     args->bubble_count = 0;
     args->is_rgfa = 1;
     args->no_overlap = 0;
@@ -38,12 +40,13 @@ void parse_opts(int argc, char* argv[], struct opt_arg *args) {
         {"vcf", required_argument, NULL, 2},
         {"output", required_argument, NULL, 3},
         {"level", required_argument, NULL, 4},
-        {"rgfa", no_argument, NULL, 5},
-        {"gfa", no_argument, NULL, 6},
+        {"thread", required_argument, NULL, 5},
+        {"rgfa", no_argument, NULL, 6},
+        {"gfa", no_argument, NULL, 7},
         {NULL, 0, NULL, 0}
     };
 
-    while ((opt = getopt_long(argc, argv, "f:v:l:o:N", long_options, &long_index)) != -1) {
+    while ((opt = getopt_long(argc, argv, "f:v:l:t:o:N", long_options, &long_index)) != -1) {
         switch (opt) {
 		case 1:
 			args->fasta_path = optarg; // reference file
@@ -69,10 +72,13 @@ void parse_opts(int argc, char* argv[], struct opt_arg *args) {
 		case 'l':
             args->lcp_level = atoi(optarg); 
             break;
-        case 5:
-            args->is_rgfa = 1;
+        case 't':
+            args->thread_number = atoi(optarg);
             break;
         case 6:
+            args->is_rgfa = 1;
+            break;
+        case 7:
             args->is_rgfa = 0;
             break;
         case 'N':

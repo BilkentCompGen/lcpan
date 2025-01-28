@@ -9,6 +9,7 @@
 #include <getopt.h>
 
 #define DEFAULT_LCP_LEVEL 4
+#define DEFAULT_THREAD_NUMBER 1
 
 /**
  * @brief Parses command-line options and arguments.

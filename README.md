@@ -33,13 +33,18 @@ Run the tool using the following command-line options:
 ./lcp_vg -f <fasta_file> -v <vcf_file> -r <output_rgfa_file> -l <lcp_level> [--rgfa | --gfa]
 ```
 
+### Merging Files
+
+The `lcp_vg` tool runs in parallel, hence, it generates multiple output file. Note that these files are dependent, expect the first file (as it stores the partitioned reference genome). At the end of the program execution, you can run `merge.sh` script that will merge all the files.
+
 - `-f`: Path to the input FASTA file.
 - `-v`: Path to the input VCF file.
 - `-r`: Path to the output rGFA file.
 - `--gfa`: Output as graphical fragment assembly.
 - `--rgfa`: Output as reference gfa [default].
 - `-N`: Output non-overlapping gfa.
-- `-l`: LCP parsing level (integer).
+- `-l`: LCP parsing level (integer) [default 4].
+- `-t`: Thread number (integer) [default 1].
 
 ### Example
 
@@ -47,7 +52,7 @@ Run the tool using the following command-line options:
 ./lcp_vg -f genome.fasta -v variations.vcf -r output.rgfa -l 4
 ```
 
-This command constructs a variation graph for the input FASTA and VCF files, applying LCP parsing at level 4, and saves the result to `output.rgfa`.
+This command constructs a variation graph for the input FASTA and VCF files, applying LCP parsing at level 4, and saves the result to `output.rgfa` and `output.rgfa.0` files. Then, you need to append content of `output.rgfa.0` file into `output.rgfa` file.
 
 ## Licence
 

@@ -40,16 +40,18 @@ int main(int argc, char* argv[]) {
 
     print_ref_seq(&seqs, args.is_rgfa, args.no_overlap, out);
 
-    FILE *out_err = fopen("out.err", "w");
+    FILE *out_err = fopen("lcp_vg.log", "w");
     if (out_err == NULL) {
         fprintf(stderr, "Couldn't open error log file\n");
         exit(EXIT_FAILURE);
     }
+    fprintf(out_err, "%s\n", args.gfa_path);
+    fprintf(out_err, "%d\n", args.thread_number);
 
     int failed_var_count = 0;
     int invalid_line_count = 0;
 
-    read_vcf(&args, &seqs, &failed_var_count, &invalid_line_count, &(args.bubble_count), out, out_err);
+    read_vcf(&args, &seqs, &failed_var_count, &invalid_line_count, out_err);
 
     fclose(out);
     fclose(out_err);

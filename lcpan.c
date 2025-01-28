@@ -1,7 +1,7 @@
 #define STATS
 
 /**
- * @file lcp_vg.cpp
+ * @file lcpan.cpp
  * @brief Implementation of a tool for constructing sequence graphs from genomic data.
  *
  * This file reads FASTA input and identifies its LCP (Locally Consistent Parsing) cores. 
@@ -40,7 +40,7 @@ int main(int argc, char* argv[]) {
 
     print_ref_seq(&seqs, args.is_rgfa, args.no_overlap, out);
 
-    FILE *out_err = fopen("lcp_vg.log", "w");
+    FILE *out_err = fopen("lcpan.log", "w");
     if (out_err == NULL) {
         fprintf(stderr, "Couldn't open error log file\n");
         exit(EXIT_FAILURE);

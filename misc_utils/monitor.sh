@@ -1,6 +1,6 @@
 #!/bin/bash
 
-PROGRAM="./lcp_vg -f data/fasta_files/a.fa -v data/vcf_files/a.vcf -o out/testaaaaaaaaaaaa.rgfa -l 4"
+PROGRAM="./lcpan -f data/fasta_files/a.fa -v data/vcf_files/a.vcf -o out/testaaaaaaaaaaaa.rgfa -l 4"
 INTERVAL=1
 
 # Check for required dependencies

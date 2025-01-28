@@ -4,4 +4,4 @@ out/
 test_files/
 tests/
 *.o/
-lcp_vg
+lcpan

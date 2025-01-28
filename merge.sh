@@ -1,6 +1,6 @@
 #!/bin/bash
 
-log_file="lcp_vg.log"
+log_file="lcpan.log"
 
 if [ ! -f "$log_file" ]; then
     echo "Error: Log file '$log_file' not found."

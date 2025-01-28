@@ -22,7 +22,7 @@ void summarize(struct opt_arg *args) {
 void parse_opts(int argc, char* argv[], struct opt_arg *args) {
 
     if (argc<7) {
-        fprintf(stderr, "Format: ./lcp_vg -f ref.fa -v var.vcf -o out.rgfa\n");
+        fprintf(stderr, "Format: ./lcpan -f ref.fa -v var.vcf -o out.rgfa\n");
         exit(EXIT_FAILURE);
     }
     

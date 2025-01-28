@@ -1,5 +1,5 @@
 # programs
-TARGET := lcp_vg
+TARGET := lcpan
 SRCS := $(wildcard *.c)
 OBJS := $(SRCS:.c=.o)
 

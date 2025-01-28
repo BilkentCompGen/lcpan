@@ -19,7 +19,7 @@ struct opt_arg {
 };
 
 struct simple_core {
-	uint64_t id;    /**< Core id given by lcp_vg.*/
+	uint64_t id;    /**< Core id given by lcpan.*/
 	uint64_t start; /**< Start index of core. */
 	uint64_t end;   /**< End index of core. */
 	uint32_t label; /**< Core id given by lcptools. */

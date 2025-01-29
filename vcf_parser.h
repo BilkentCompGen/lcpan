@@ -20,13 +20,9 @@
  *                           input options, including the path to the VCF file.
  * @param seqs               A pointer to the `ref_seq` structure holding the
  *                           reference sequences for variation processing.
- * @param failed_var_count   A pointer to an integer to store the count of 
- *                           failed variations.
- * @param invalid_line_count A pointer to an integer to store the count of 
- *                           invalid lines in the VCF file.
  * @param out_err            A file pointer to the error file where errors and
  *                           invalid lines will be logged.
  */
-void read_vcf(struct opt_arg *args, struct ref_seq *seqs, int *failed_var_count, int *invalid_line_count, FILE *out_err);
+void read_vcf(struct opt_arg *args, struct ref_seq *seqs, FILE *out_err);
 
 #endif

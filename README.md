@@ -47,13 +47,13 @@ Run the tool using the following command-line options:
 
 ### Merging Files
 
-The `lcpan` tool runs in parallel, hence, it generates multiple output file. Note that these files are dependent, expect the first file (as it stores the partitioned reference genome). At the end of the program execution, you can run `merge.sh` script that will merge all the files.
+The `lcpan` tool runs in parallel, hence, it generates multiple output file. Note that these files are dependent, expect the first file (as it stores the partitioned reference genome). At the end of the program execution, you can run `merge.sh lcpan.t<thread-number>.log` script that will merge all the files.
 
 ### Example
 
 ```sh
 ./lcpan -f genome.fasta -v variations.vcf -r output.rgfa -l 4
-bash merge.sh
+bash merge.sh lcpan.t4.log
 ```
 
 This command constructs a variation graph for the input FASTA and VCF files, applying LCP parsing at level 4, and saves the result to `output.rgfa` and `output.rgfa.0` files. Then, you need to append content of `output.rgfa.0` file into `output.rgfa` file.

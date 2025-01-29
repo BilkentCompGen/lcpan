@@ -43,7 +43,7 @@ void free_ref_seq(struct ref_seq *seqs);
  * @param out        A file pointer to the output file where the formatted segments
  *                   and links will be written.
  */
-void print_ref_seq(struct ref_seq *seqs, int is_rgfa, int no_overlap, FILE *out);
+void print_ref_seq(const struct ref_seq *seqs, int is_rgfa, int no_overlap, FILE *out);
 
 /**
  * @brief Simulates an alternate sequence, extracts and refines LCP cores, and prints bubbles.
@@ -52,17 +52,13 @@ void print_ref_seq(struct ref_seq *seqs, int is_rgfa, int no_overlap, FILE *out)
  * and alternate tokens. It extracts LCP cores, refines them with the original
  * sequence, and prints the remaining differences as bubbles in rGFA format.
  * Results and errors are logged to the specified output files.
- *
+ * 
+ * @param t_args           A pointer to the `t_arg` structure containing arguments.
  * @param chrom            A pointer to the `chr` structure representing the chromosome.
  * @param org_seq          The original sequence string.
  * @param alt_token        The alternate sequence token.
  * @param start_loc        The starting location of the variation.
- * @param failed_var_count A pointer to an integer to count failed variations.
- * @param core_id_mutex    A mutex for assigning id.
- * @param out_err_mutex    A mutex for errour output file logging.
- * @param out              A file pointer for the output file to write results.
- * @param out_err          A file pointer for the error file to log issues.
  */
-void variate(struct opt_arg *args, struct chr *chrom, const char *org_seq, const char *alt_token, uint64_t start_loc, int *failed_var_count, pthread_mutex_t *core_id_mutex, pthread_mutex_t *out_err_mutex, FILE *out, FILE *out_err);
+void variate(struct t_arg *t_args, const struct chr *chrom, const char *org_seq, const char *alt_token, uint64_t start_loc);
 
 #endif

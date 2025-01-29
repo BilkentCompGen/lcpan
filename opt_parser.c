@@ -30,6 +30,8 @@ void parse_opts(int argc, char* argv[], struct opt_arg *args) {
     args->core_id_index = 0;
     args->lcp_level = DEFAULT_LCP_LEVEL;
     args->thread_number = DEFAULT_THREAD_NUMBER;
+    args->failed_var_count = 0;
+    args->invalid_line_count = 0;
     args->bubble_count = 0;
     args->is_rgfa = 1;
     args->no_overlap = 0;

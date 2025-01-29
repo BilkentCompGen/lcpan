@@ -20,7 +20,6 @@
 #include "vcf_parser.h"
 #include "utils.h"
 
-
 int main(int argc, char* argv[]) {
 
     struct opt_arg args;
@@ -40,7 +39,9 @@ int main(int argc, char* argv[]) {
 
     print_ref_seq(&seqs, args.is_rgfa, args.no_overlap, out);
 
-    FILE *out_err = fopen("lcpan.log", "w");
+    char out_err_filename[15];
+    snprintf(out_err_filename, sizeof(out_err_filename), "lcpan.t%d.log", args.thread_number);
+    FILE *out_err = fopen(out_err_filename, "w");
     if (out_err == NULL) {
         fprintf(stderr, "Couldn't open error log file\n");
         exit(EXIT_FAILURE);
@@ -48,10 +49,7 @@ int main(int argc, char* argv[]) {
     fprintf(out_err, "%s\n", args.gfa_path);
     fprintf(out_err, "%d\n", args.thread_number);
 
-    int failed_var_count = 0;
-    int invalid_line_count = 0;
-
-    read_vcf(&args, &seqs, &failed_var_count, &invalid_line_count, out_err);
+    read_vcf(&args, &seqs, out_err);
 
     fclose(out);
     fclose(out_err);
@@ -59,9 +57,9 @@ int main(int argc, char* argv[]) {
     free_opt_arg(&args);
     free_ref_seq(&seqs);
 
-    printf("[INFO] Total number of failed variations: %d\n", failed_var_count);
-    printf("[INFO] Total number of invalid lines in the vcf file: %d\n", invalid_line_count);
     printf("[INFO] Total number of bubbles created: %d\n", args.bubble_count);
+    printf("[INFO] Total number of invalid lines in the vcf file: %d\n", args.invalid_line_count);
+    printf("[INFO] Total number of failed variations: %d\n", args.failed_var_count);
     
     return 0;
 }

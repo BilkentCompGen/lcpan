@@ -13,6 +13,8 @@ struct opt_arg {
 	uint64_t core_id_index; /**< Global id index for LCP cores. */
 	int lcp_level;			/**< The LCP level to be used. */
     int thread_number;      /**< The thread number. */
+    int failed_var_count;   /**< Total number of lines failed to variate. */
+    int invalid_line_count; /**< Total number of lines that are invalid in VCF file. */
 	int bubble_count;	 	/**< Number of bubbles created in the graph. */
 	int is_rgfa;			/**< Boolean argument to output rGFA or GFA. */
     int no_overlap;         /**< Boolean argument to decide whether allow overlap. */
@@ -47,16 +49,20 @@ struct line_queue {
 };
 
 struct t_arg {
-    struct opt_arg *args;
+    uint64_t core_id_index;
+    int thread_id;
+    int lcp_level;
+	int is_rgfa;
+    int no_overlap;
     struct ref_seq *seqs;
     int failed_var_count;
     int invalid_line_count;
+    int bubble_count;
     FILE *out;
     FILE *out_err;
     struct line_queue *queue;
-    pthread_mutex_t *mutex;
+    pthread_mutex_t *queue_mutex;
     pthread_mutex_t *out_err_mutex;
-    pthread_mutex_t *core_id_mutex;
     pthread_cond_t *cond_not_full;
     pthread_cond_t *cond_not_empty;
     int *exit_signal;

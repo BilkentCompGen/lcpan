@@ -1,6 +1,6 @@
 #!/bin/bash
 
-log_file="lcpan.log"
+log_file=$1
 
 if [ ! -f "$log_file" ]; then
     echo "Error: Log file '$log_file' not found."
@@ -20,7 +20,7 @@ if ! [[ "$file_count" =~ ^[0-9]+$ ]]; then
     exit 1
 fi
 
-for i in $(seq 0 $((file_count - 1))); do
+for i in $(seq 1 $((file_count))); do
     file="${input_file}.${i}"
 
     if [ -f "$file" ]; then

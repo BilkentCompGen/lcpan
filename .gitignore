@@ -5,3 +5,4 @@ test_files/
 tests/
 *.o/
 lcpan
+bin/*

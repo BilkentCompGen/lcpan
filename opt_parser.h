@@ -8,7 +8,7 @@
 #include <unistd.h>
 #include <getopt.h>
 
-#define DEFAULT_LCP_LEVEL 4
+#define DEFAULT_LCP_LEVEL 5
 #define DEFAULT_THREAD_NUMBER 1
 
 /**

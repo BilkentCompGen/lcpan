@@ -4,8 +4,14 @@ void process_chrom(char *sequence, uint64_t seq_size, int lcp_level, struct chr 
     uint64_t id = *core_id_index;
 
     uint64_t estimated_core_size = (int)(seq_size / pow(1.5, lcp_level));
-    chrom->cores = (struct simple_core*)malloc(estimated_core_size * sizeof(struct simple_core));
     chrom->cores_size = 0;
+
+    if (estimated_core_size == 0) {
+        chrom->cores = NULL;
+        return;
+    }
+    
+    chrom->cores = (struct simple_core*)malloc(estimated_core_size * sizeof(struct simple_core));
 
     uint64_t index = 0;
     uint64_t last_core_index = 0;
@@ -24,13 +30,10 @@ void process_chrom(char *sequence, uint64_t seq_size, int lcp_level, struct chr 
         init_lps_offset(&str, sequence+index, end-index, index);
         lps_deepen(&str, lcp_level);
 
-        // chrom->cores = (struct simple_core *)malloc((chrom->cores_size)*sizeof(struct simple_core));
-
         for (int i=0; i<str.size; i++) {
             chrom->cores[last_core_index].id = id;
             chrom->cores[last_core_index].start = str.cores[i].start;
             chrom->cores[last_core_index].end = str.cores[i].end;
-            chrom->cores[last_core_index].label = str.cores[i].label;
             id++;
             last_core_index++;
         }
@@ -48,7 +51,6 @@ void process_chrom(char *sequence, uint64_t seq_size, int lcp_level, struct chr 
     }
 
     *core_id_index = id;
-    
 }
 
 void read_fasta(struct opt_arg *args, struct ref_seq *seqs) {
@@ -96,7 +98,7 @@ void read_fasta(struct opt_arg *args, struct ref_seq *seqs) {
         // assign size and allocate in memory
         length = strtok(NULL, "\t");
         seqs->chrs[chrom_index].seq_size = strtol(length, NULL, 10);
-        
+
         seqs->chrs[chrom_index].seq = (char *)malloc(seqs->chrs[chrom_index].seq_size);
         if (seqs->chrs[chrom_index].seq == NULL) {
             fprintf(stderr, "REF: Couldn't allocate memory to chromosome string.\n");

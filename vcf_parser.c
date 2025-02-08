@@ -65,7 +65,7 @@ void t_read_vcf(void *args) {
             continue;
         }
         
-        offset = strtol(index, NULL, 10);     // get offset
+        offset = strtol(index, NULL, 10) - 1; // get offset
         strtok_r(NULL, "\t", &saveptr);       // skip ID
         seq = strtok_r(NULL, "\t", &saveptr); // get sequence
         alt = strtok_r(NULL, "\t", &saveptr); // get ALT alleles
@@ -90,9 +90,20 @@ void t_read_vcf(void *args) {
 
         char *alt_saveptr;
         char *alt_token = strtok_r(alt, ",", &alt_saveptr); // split ALT alleles by comma
-        
+
         while (alt_token != NULL) {
-            variate(t_args, &(t_args->seqs->chrs[chrom_index]), seq, alt_token, offset);
+            char *alt_token_copy = strdup(alt_token); 
+            if (alt_token_copy == NULL) {
+                t_args->failed_var_count += 1;
+                pthread_mutex_lock(t_args->out_err_mutex);
+                fprintf(t_args->out_err, "VCF: Memory allocation failed for alt_token_copy.\n");
+                fflush(t_args->out_err);
+                pthread_mutex_unlock(t_args->out_err_mutex);
+                continue;
+            }
+            variate(t_args, &(t_args->seqs->chrs[chrom_index]), seq, alt_token_copy, offset);
+            free(alt_token_copy);
+
             alt_token = strtok_r(NULL, ",", &alt_saveptr);
         }
 
@@ -117,7 +128,7 @@ void read_vcf(struct opt_arg *args, struct ref_seq *seqs, FILE *out_err) {
     pthread_cond_init(&cond_not_empty, NULL);
 
     struct line_queue queue;
-    line_queue_init(&queue, 2*args->thread_number);
+    line_queue_init(&queue, args->tload_factor * args->thread_number);
 
     for (int i=0; i<args->thread_number; i++) {
         char indexed_filename[strlen(args->gfa_path)+5];
@@ -166,23 +177,43 @@ void read_vcf(struct opt_arg *args, struct ref_seq *seqs, FILE *out_err) {
 
     int line_count = 0;
     while (fgets(line, current_size, file) != NULL) {
-        while (strlen(line) == current_size - 1 && line[current_size - 2] != '\n') {
-            long current_position = ftell(file);
-            fseek(file, current_position - (current_size - 1), SEEK_SET); // last char is '\0'
-            
-            current_size *= 2;
-            line = (char *)realloc(line, current_size);
-            continue; // retry to read line
-        }
-
-        line[strlen(line)-1] = '\0';
+        line_count++;
+        size_t len = strlen(line);
+        int skip_line = 0;
         
-        if (line[0] == '#')
+        while (len == current_size - 1 && line[len - 1] != '\n') {
+            current_size *= 2;
+            char *temp_line = (char *)realloc(line, current_size);
+            if (!temp_line) {
+                fprintf(out_err, "VCF: Memory reallocation failed.\n");
+                free(line);
+                fclose(file);
+                return;
+            }
+            line = temp_line;
+
+            if (fgets(line + len, current_size - len, file) == NULL) {
+                skip_line = 1;
+                break;
+            }
+            len = strlen(line);
+        }
+        
+        if (skip_line || len < 2 || line[0] == '#')
             continue;
 
-        char *queue_line = (char *)strdup(line);
+        if (line[len - 1] == '\n') {
+            line[len - 1] = '\0';
+            len--;
+        }
+
+        char *queue_line = strdup(line);
+        if (!queue_line) {
+            args->invalid_line_count += 1;
+            fprintf(out_err, "VCF: Memory allocation failed.\n");
+            continue;
+        }
         line_queue_push(&queue, queue_line, &queue_mutex, &cond_not_full, &cond_not_empty);
-        line_count++;
     }
 
     fclose(file);
@@ -201,7 +232,6 @@ void read_vcf(struct opt_arg *args, struct ref_seq *seqs, FILE *out_err) {
         args->invalid_line_count += t_args[i].invalid_line_count;
         args->bubble_count += t_args[i].bubble_count;
         fclose(t_args[i].out);
-        // printf("Number of processed: %d\n", t_args[i].bubble_count);
     }
 
     free(queue.lines);

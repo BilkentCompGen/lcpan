@@ -28,10 +28,10 @@ void print_seq(int tid, uint64_t cid, const char *seq, int seq_len, const char *
 }
 
 void print_link(int tid1, uint64_t cid1, char sign1, int tid2, uint64_t cid2, char sign2, uint64_t overlap, int no_overlap, FILE *out) {
-    if (!no_overlap) {
-        fprintf(out, "L\ts%d.%ld\t%c\ts%d.%ld\t%c\t%ldM\n", tid1, cid1, sign1, tid2, cid2, sign2, overlap);
-    } else {
+    if (no_overlap) {
         fprintf(out, "L\ts%d.%ld\t%c\ts%d.%ld\t%c\t%dM\n", tid1, cid1, sign1, tid2, cid2, sign2, 0);
+    } else {
+        fprintf(out, "L\ts%d.%ld\t%c\ts%d.%ld\t%c\t%ldM\n", tid1, cid1, sign1, tid2, cid2, sign2, overlap);
     }
 }
 
@@ -76,7 +76,7 @@ void print_ref_seq(const struct ref_seq *seqs, int is_rgfa, int no_overlap, FILE
 		}
 	}
 
-	printf("[INFO] Writing process completed.\n");;
+	printf("[INFO] Writing process completed.\n");
 }
 
 uint64_t suffix_to_prefix_overlap(const char *str1, const char *str2, uint64_t start1, uint64_t end1, uint64_t start2, uint64_t end2) {
@@ -94,10 +94,10 @@ uint64_t suffix_to_prefix_overlap(const char *str1, const char *str2, uint64_t s
 
 void find_boundaries(uint64_t start_loc, uint64_t end_loc, const struct chr *chrom, uint64_t *latest_core_index, uint64_t *first_core_after) {
 
-	*latest_core_index = 0;
-	*first_core_after = UINT64_MAX;
-	const struct simple_core *cores = chrom->cores;	
-	int left, mid, right;
+    *latest_core_index = 0;
+    *first_core_after = chrom->cores_size;
+    const struct simple_core *cores = chrom->cores;
+    int left, mid, right;
 
 	left = 0;
     right = chrom->cores_size;
@@ -111,24 +111,125 @@ void find_boundaries(uint64_t start_loc, uint64_t end_loc, const struct chr *chr
         }
     }
 
-	*first_core_after = *latest_core_index;
+    *first_core_after = *latest_core_index;
 	for (int j=*latest_core_index; j<chrom->cores_size; j++) {
-		if (end_loc < cores[j].start) {
-			*first_core_after = j;
+        if (end_loc < cores[j].start) {
+            *first_core_after = j;
 			return;
-		}
+        }
+    }
+}
+
+void variate_snp(struct t_arg *t_args, const struct chr *chrom, const char *alt_token, uint64_t start_loc, uint64_t end_loc, uint64_t latest_core_index, uint64_t first_core_after, uint64_t marginal_start, uint64_t marginal_end, uint64_t end_overlap) {
+
+	// print new node connecting directly from latest core before and first core after the altenrating token
+    // print new node
+    fprintf(t_args->out, "H\tVN:Z:1.1\n");
+    fprintf(t_args->out, "S\ts%d.%ld\t", t_args->thread_id, t_args->core_id_index);
+    fwrite(chrom->seq+marginal_start, 1, start_loc-marginal_start, t_args->out);
+    fprintf(t_args->out, "%s", alt_token);
+    fwrite(chrom->seq+end_loc, 1, marginal_end-end_loc, t_args->out); 
+	if (t_args->is_rgfa) {
+		fprintf(t_args->out, "\tSN:Z:%d.%ld\tSO:i:%ld\tSR:i:1\n", t_args->thread_id, t_args->core_id_index, marginal_start); 
+	} else {
+		fprintf(t_args->out, "\n");
 	}
+    // print splitting link
+    print_link(0, chrom->cores[latest_core_index].id, '+', t_args->thread_id, t_args->core_id_index, '+', 0, t_args->no_overlap, t_args->out);
+	// print merging link
+    print_link(t_args->thread_id, t_args->core_id_index, '+', 0, chrom->cores[first_core_after].id, '+', end_overlap, t_args->no_overlap, t_args->out);
+    t_args->core_id_index++;
+}
+
+void variate_sv(struct t_arg *t_args, const struct chr *chrom, const char *alt_token, uint64_t start_loc, uint64_t end_loc, uint64_t latest_core_index, uint64_t first_core_after, uint64_t marginal_start, uint64_t marginal_end, uint64_t end_overlap) {
+
+    uint64_t alt_len = strlen(alt_token);
+ 
+	struct lps substr;
+	init_lps_offset(&substr, alt_token, alt_len, 0);
+	lps_deepen(&substr, t_args->lcp_level);
+
+    if (substr.size == 0) {
+        // print first splitting node and link from reference graph	
+        // print new node
+        fprintf(t_args->out, "S\ts%d.%ld\t", t_args->thread_id, t_args->core_id_index);
+        fwrite(chrom->seq+marginal_start, 1, start_loc-marginal_start, t_args->out);
+        fprintf(t_args->out, "%s", alt_token);
+        fwrite(chrom->seq+end_loc, 1, marginal_end-end_loc, t_args->out); 
+        if (t_args->is_rgfa) {
+            fprintf(t_args->out, "\tSN:Z:%d.%ld\tSO:i:%ld\tSR:i:1\n", t_args->thread_id, t_args->core_id_index, marginal_start); 
+        } else {
+            fprintf(t_args->out, "\n");
+        }
+        // print splitting link
+        print_link(0, chrom->cores[latest_core_index].id, '+', t_args->thread_id, t_args->core_id_index, '+', 0, t_args->no_overlap, t_args->out);
+        // print merging link
+        print_link(t_args->thread_id, t_args->core_id_index, '+', 0, chrom->cores[first_core_after].id, '+', end_overlap, t_args->no_overlap, t_args->out);
+        t_args->core_id_index++;
+    } else {
+        // print new node in between latest core before alternating core and first core in alternating core
+        fprintf(t_args->out, "S\ts%d.%ld\t", t_args->thread_id, t_args->core_id_index);
+        fwrite(chrom->seq+marginal_start, 1, start_loc-marginal_start, t_args->out);
+        if (substr.cores[0].start) { // check if there is a string in alternating token that a cores in it don't cover, if do, merge it with a segment
+            fwrite(alt_token, 1, substr.cores[0].start, t_args->out);
+        }
+        if (t_args->is_rgfa) {
+            fprintf(t_args->out, "\tSN:Z:%d.%ld\tSO:i:%ld\tSR:i:1\n", t_args->thread_id, t_args->core_id_index, marginal_start); 
+        } else {
+            fprintf(t_args->out, "\n");
+        }
+        // print link between splitting segment with reference
+        print_link(0, chrom->cores[latest_core_index].id, '+', t_args->thread_id, t_args->core_id_index, '+', 0, t_args->no_overlap, t_args->out);
+        t_args->core_id_index++;
+
+        // print first core as a segment
+        char first_core_id[50];
+        sprintf(first_core_id, "%d.%ld", t_args->thread_id, t_args->core_id_index);
+        print_seq(t_args->thread_id, t_args->core_id_index, alt_token+substr.cores[0].start, substr.cores[0].end-substr.cores[0].start, first_core_id, substr.cores[0].start+start_loc, 0, t_args->is_rgfa, t_args->out);
+        print_link(t_args->thread_id, t_args->core_id_index-1, '+', t_args->thread_id, t_args->core_id_index, '+', 0, t_args->no_overlap, t_args->out);
+        t_args->core_id_index++;
+
+        for (int i=1; i<substr.size; i++) {
+            int start = substr.cores[i].start;
+            int overlap = (int)(substr.cores[i-1].end-start);
+            int offset = t_args->no_overlap ? overlap : 0;
+            int core_len = substr.cores[i].end-start - offset;
+            char temp_id[50];
+            sprintf(temp_id, "%d.%ld", t_args->thread_id, t_args->core_id_index);
+            print_seq(t_args->thread_id, t_args->core_id_index, alt_token+start+offset, core_len, temp_id, start_loc+start+offset, 1, t_args->is_rgfa, t_args->out);
+            print_link(t_args->thread_id, t_args->core_id_index-1, '+', t_args->thread_id, t_args->core_id_index, '+', overlap, t_args->no_overlap, t_args->out);
+            t_args->core_id_index++;
+        }
+        
+        // create merging segment in between last core in alternating token and reference sequence.
+        fprintf(t_args->out, "S\ts%d.%ld\t", t_args->thread_id, t_args->core_id_index);
+        if (alt_len-substr.cores[substr.size-1].end) {
+            fwrite(alt_token+substr.cores[substr.size-1].end, 1, alt_len-substr.cores[substr.size-1].end, t_args->out);
+        }
+        fwrite(chrom->seq+end_loc, 1, marginal_end-end_loc, t_args->out);
+        if (t_args->is_rgfa) {
+            char temp_id[50];
+            sprintf(temp_id, "%d.%ld", t_args->thread_id, t_args->core_id_index);
+            fprintf(t_args->out, "\tSN:Z:%s.%ld\tSO:i:%ld\tSR:i:1\n", temp_id, t_args->core_id_index, marginal_start); 
+        } else {
+            fprintf(t_args->out, "\n");
+        }
+        print_link(t_args->thread_id, t_args->core_id_index-1, '+', 0, chrom->cores[first_core_after].id, '+', end_overlap, t_args->no_overlap, t_args->out);
+        t_args->core_id_index++;
+    }
+
+	free_lps(&substr);
 }
 
 void variate(struct t_arg *t_args, const struct chr *chrom, const char *org_seq, const char *alt_token, uint64_t start_loc) {
-	
+
 	// decide on boundaries
 	uint64_t end_loc = start_loc+strlen(org_seq);
-	uint64_t latest_core_index;
-	uint64_t first_core_after;	
+    uint64_t latest_core_index;
+	uint64_t first_core_after;
 	find_boundaries(start_loc, end_loc, chrom, &latest_core_index, &first_core_after);
 
-	if (latest_core_index < MARGIN-1)  {
+	if (latest_core_index == 0 || chrom->cores[latest_core_index].end < chrom->cores[latest_core_index+1].start)  {
         t_args->failed_var_count += 1;
         pthread_mutex_lock(t_args->out_err_mutex);
         fprintf(t_args->out_err, "VARIATE-MARGIN-START:\tCHROM: %s,\tPOSITION: %ld,\tORG: %s,\tALT: %s,\tlatest_core_index: %ld\n", chrom->seq_name, start_loc, org_seq, alt_token, latest_core_index);
@@ -136,7 +237,7 @@ void variate(struct t_arg *t_args, const struct chr *chrom, const char *org_seq,
         pthread_mutex_unlock(t_args->out_err_mutex);
 		return;
 	}
-	if (first_core_after+MARGIN-1 >= (uint64_t)chrom->cores_size) {
+	if (first_core_after+1 >= (uint64_t)chrom->cores_size || chrom->cores[first_core_after-1].end < chrom->cores[first_core_after].start) {
         t_args->failed_var_count += 1;
         pthread_mutex_lock(t_args->out_err_mutex);
         fprintf(t_args->out_err, "VARIATE-MARGIN-END:\tCHROM: %s,\tPOSITION: %ld,\tORG: %s,\tALT: %s,\tfirst_core_after: %ld,\tcores_size: %d\n", chrom->seq_name, start_loc, org_seq, alt_token, first_core_after, chrom->cores_size);
@@ -145,213 +246,20 @@ void variate(struct t_arg *t_args, const struct chr *chrom, const char *org_seq,
 		return;
 	}
 
-	if (chrom->cores[latest_core_index].end >= start_loc || chrom->cores[latest_core_index+1].end < start_loc) {
-        t_args->failed_var_count += 1;
-        pthread_mutex_lock(t_args->out_err_mutex);
-		fprintf(t_args->out_err, "VARIATE-BOUNDARY:\tIncorrect boundary found.\n");
-        fflush(t_args->out_err);
-        pthread_mutex_unlock(t_args->out_err_mutex);
-		return;
-	}
-
-	latest_core_index -= MARGIN-1;
-	first_core_after += MARGIN-1;
-
-	// get the chromosome
-    uint64_t marginal_start = chrom->cores[latest_core_index].start; // start of variation
-    uint64_t marginal_end = chrom->cores[first_core_after].end; // end of variation
-
-	// for loop from marginal_start to start_loc the check N
-	for (uint64_t i = marginal_start; i < start_loc; i++) {
-		if (chrom->seq[i] == 'N') {
-            t_args->failed_var_count += 1;
-            pthread_mutex_lock(t_args->out_err_mutex);
-			fprintf(t_args->out_err, "VARIATE-(N at start):\tCHROM: %s,\tPOSITION: %ld,\tORG: %s,\tALT: %s,\tMAR START: %ld,\tMAR END: %ld\n", chrom->seq_name, start_loc, org_seq, alt_token, marginal_start, marginal_end);
-            fflush(t_args->out_err);
-            pthread_mutex_unlock(t_args->out_err_mutex);
-			return;
-		}
-	}
-	// for loop from start_ to marginal_end the check N
-	for (uint64_t i = end_loc; i < marginal_end; i++) {
-		if (chrom->seq[i] == 'N') {
-            t_args->failed_var_count += 1;
-            pthread_mutex_lock(t_args->out_err_mutex);
-			fprintf(t_args->out_err, "VARIATE-(N at end):\tCHROM: %s,\tPOSITION: %ld,\tORG: %s,\tALT: %s,\tMAR START: %ld,\tMAR END: %ld\n", chrom->seq_name, start_loc, org_seq, alt_token, marginal_start, marginal_end);
-			fflush(t_args->out_err);
-            pthread_mutex_unlock(t_args->out_err_mutex);
-            return;
-		}
-	}
-
-    uint64_t before_len = start_loc-marginal_start;
-    uint64_t alt_len = strlen(alt_token);
-    uint64_t after_len = marginal_end-end_loc;
-    uint64_t total_len = before_len+alt_len+after_len;
-
-    char *subseq = (char *)malloc(total_len+1); // +1 for null terminator
-    if (subseq == NULL) {
-        t_args->failed_var_count += 1;
-        pthread_mutex_lock(t_args->out_err_mutex);
-        fprintf(t_args->out_err, "VARIATE-SUBSEQ:\tCHROM: %s,\tPOSITION: %ld,\tORG: %s,\tALT: %s,\tMAR START: %ld,\tMAR END: %ld\n", chrom->seq_name, start_loc, org_seq, alt_token, marginal_start, marginal_end);
-        fflush(t_args->out_err);
-        pthread_mutex_unlock(t_args->out_err_mutex);
-        return;
-    }
-
-    strncpy(subseq, chrom->seq+marginal_start, before_len);
-    strcpy(subseq+before_len, alt_token);
-    strncpy(subseq+before_len+alt_len, chrom->seq+end_loc, after_len);
-    subseq[(total_len)] = '\0';
-
-	struct lps substr;
-	init_lps_offset(&substr, subseq, total_len, marginal_start);
-	lps_deepen(&substr, t_args->lcp_level);
-
-	// uint64_t debug_latest_core_index = latest_core_index;
-	// uint64_t debug_first_core_after = first_core_after;
-
-	int debug = 0;
-
-	// refine start
-	// we are using the locations (start) of the cores for the refinements,
-	// and matching the ones that are identified in both alt and org sequences.
-	int starting_point = 0; 			// the newly created cores' starting index in lps cores array
-	while (chrom->cores[latest_core_index].end < start_loc) {
-		if (chrom->cores[latest_core_index].start == substr.cores[starting_point].start &&
-			chrom->cores[latest_core_index].label == substr.cores[starting_point].label) {
-			break; // found first match
-		} else if (chrom->cores[latest_core_index].start < substr.cores[starting_point].start) {
-			latest_core_index++;
-		} else {
-			starting_point++;
-		}
-	}
-	// go until there is a mismatch
-	while ( chrom->cores[latest_core_index].end<start_loc && 
-			chrom->cores[latest_core_index].label == substr.cores[starting_point].label &&
-			chrom->cores[latest_core_index].start == substr.cores[starting_point].start) {
-		latest_core_index++;
-		starting_point++;
-	}
-	latest_core_index--; // as there should be at least one match
-	const struct simple_core *splitting_core = &(chrom->cores[latest_core_index]);
-
-	// if (splitting_core->label != substr.cores[starting_point-1].label ||
-	// 	splitting_core->start != substr.cores[starting_point-1].start) {
-	// 	fprintf(out_err, "VARIATE-START: Something wrong with starting point\n");
-	// 	debug = 1;
-	// }
-	if (splitting_core->label != substr.cores[starting_point-1].label ||
-        splitting_core->start != substr.cores[starting_point-1].start ||
-		strncmp(chrom->seq+splitting_core->start, subseq+substr.cores[starting_point-1].start-marginal_start, splitting_core->end-splitting_core->start) != 0) {
-		debug = 1;
-	}
-
-	// refine end
-	int ending_point = substr.size-1; 	// the newly created cores' ending index in lps cores array
-	while (end_loc <= chrom->cores[first_core_after].start) {
-		if (chrom->cores[first_core_after].label == substr.cores[ending_point].label &&
-			chrom->cores[first_core_after].start == substr.cores[ending_point].start-alt_len+strlen(org_seq)) {
-			break; // found first match
-		} else if (chrom->cores[first_core_after].start < substr.cores[ending_point].start-alt_len+strlen(org_seq)) {
-			ending_point--;
-		} else {
-			first_core_after--;
-		}
-	}
-	// go until there is a mismatch
-	while ( end_loc <= chrom->cores[first_core_after].start && 
-			chrom->cores[first_core_after].label == substr.cores[ending_point].label && 
-			chrom->cores[first_core_after].start == substr.cores[ending_point].start-alt_len+strlen(org_seq)) {
-		first_core_after--;
-		ending_point--;
-	}
-	first_core_after++;
-	const struct simple_core *merging_core = &(chrom->cores[first_core_after]);
-
-	if (merging_core->label != substr.cores[ending_point+1].label || 
-		merging_core->start != substr.cores[ending_point+1].start-alt_len+strlen(org_seq)) {
-		debug = 2;
-	}
-
-    uint64_t merging_overlap = 0;
-	//ending point and merging_core
-	uint64_t overlap_start = substr.cores[ending_point].start - marginal_start;
-	uint64_t overlap_end = substr.cores[ending_point].end - marginal_start;
-
-	merging_overlap = suffix_to_prefix_overlap(subseq, chrom->seq, overlap_start, overlap_end, merging_core->start, merging_core->end);
-
-    if (merging_overlap == 0) {
-		debug = 3;
-    }
-
-	if (debug) {
-        t_args->failed_var_count += 1;
-        pthread_mutex_lock(t_args->out_err_mutex);
-        if (debug == 1) {
-            // fprintf(t_args->out_err, "VARIATE-START: Chr cores first %d: ", MARGIN);
-            // for (uint64_t i=debug_latest_core_index; i<=debug_latest_core_index+3; i++) {
-            //     fprintf(t_args->out_err, "core: %u, index: %ld,\t", chrom->cores[i].label, chrom->cores[i].start);
-            // }
-            // fprintf(t_args->out_err, "Alt Cores first %d: ", MARGIN);
-            // for (int i=0; i<4; i++) {
-            //     fprintf(t_args->out_err, "core: %u, index: %ld,\t", substr.cores[i].label, substr.cores[i].start);
-            // }
-            fprintf(t_args->out_err, "VARIATE-START:\tCHROM: %s,\tPOSITION: %ld,\tORG: %s,\tALT: %s,\tMAR START: %ld,\tMAR END: %ld", chrom->seq_name, start_loc, org_seq, alt_token, marginal_start, marginal_end);
-        }
-        else if (debug == 2) {
-            // fprintf(t_args->out_err, "VARIATE-END: Chr cores last %d: ", MARGIN);
-            // for (uint64_t i=debug_first_core_after-3; i<=debug_first_core_after; i++) {
-            //     fprintf(t_args->out_err, "core: %u, index: %ld,\t", chrom->cores[i].label, chrom->cores[i].start);
-            // }
-            // fprintf(t_args->out_err, "Alt Cores last %d: ", MARGIN);
-            // for (int i=substr.size-4; i<substr.size; i++) {
-            //     fprintf(t_args->out_err, "core: %u, index: %ld,\t", substr.cores[i].label, substr.cores[i].start-alt_len+strlen(org_seq));
-            // }
-            fprintf(t_args->out_err, "VARIATE-END:\tCHROM: %s,\tPOSITION: %ld,\tORG: %s,\tALT: %s,\tMAR START: %ld,\tMAR END: %ld", chrom->seq_name, start_loc, org_seq, alt_token, marginal_start, marginal_end);
-        }
-        else {
-            fprintf(t_args->out_err, "VARIATE-END-OVERLAP:\tCHROM: %s,\tPOSITION: %ld,\tORG: %s,\tALT: %s,\tMAR START: %ld,\tMAR END: %ld", chrom->seq_name, start_loc, org_seq, alt_token, marginal_start, marginal_end);
-        }
-		fprintf(t_args->out_err, "\n");
-		fflush(t_args->out_err);
-        pthread_mutex_unlock(t_args->out_err_mutex);
-		return;
-	}
+    // get the chromosome
+    uint64_t marginal_start = chrom->cores[latest_core_index].end; // start of variation
+    uint64_t marginal_end = chrom->cores[first_core_after-1].end; // end of variation
 
     t_args->bubble_count += 1;
 
-	// print first splitting node and link from reference graph	
-    {
-        int splitting_overlap = (splitting_core->end-substr.cores[starting_point].start);
-        int seq_start = substr.cores[starting_point].start-marginal_start;
-        int seq_len = substr.cores[starting_point].end-substr.cores[starting_point].start;
-        int start = substr.cores[starting_point].start;
-        int offset = t_args->no_overlap ? splitting_overlap : 0;
-        print_seq(t_args->thread_id, t_args->core_id_index, subseq+seq_start+offset, seq_len-offset, "VAR", start+offset, 1, t_args->is_rgfa, t_args->out);
-        t_args->core_id_index++;
-	    print_link(0, splitting_core->id, '+', t_args->thread_id, t_args->core_id_index-1, '+', splitting_overlap, t_args->no_overlap, t_args->out);
-    } 
+    // we need to make connection based on overlap, which is same size between first_core_after-1 and first_core_after
+    uint64_t end_overlap = chrom->cores[first_core_after-1].end - chrom->cores[first_core_after].start;
 
-	for (int i=starting_point+1; i<=ending_point; i++) {
-        int overlap = (int)(substr.cores[i-1].end-substr.cores[i].start);
-        int seq_start = substr.cores[i].start-marginal_start;
-        int seq_len = substr.cores[i].end-substr.cores[i].start;
-        int start = substr.cores[i].start;
-        int offset = t_args->no_overlap ? overlap : 0;
-        print_seq(t_args->thread_id, t_args->core_id_index, subseq+seq_start+offset, seq_len-offset, "VAR", start+offset, 1, t_args->is_rgfa, t_args->out);
-        print_link(t_args->thread_id, t_args->core_id_index-1, '+', t_args->thread_id, t_args->core_id_index, '+', overlap, t_args->no_overlap, t_args->out);
-		t_args->core_id_index++;
-	}
+    if (end_loc-start_loc<SV_LEN_BOUNDARY && strlen(alt_token)<SV_LEN_BOUNDARY) {
+        variate_snp(t_args, chrom, alt_token, start_loc, end_loc, latest_core_index, first_core_after, marginal_start, marginal_end, end_overlap);
+    } else {
+        variate_sv(t_args, chrom, alt_token, start_loc, end_loc, latest_core_index, first_core_after, marginal_start, marginal_end, end_overlap);
+    }
 
-	print_link(t_args->thread_id, t_args->core_id_index-1, '+', 0, merging_core->id, '+', merging_overlap, t_args->no_overlap, t_args->out);
-	
-	free_lps(&substr);
-
-	free(subseq);
-
-    // if (t_args->core_id_index >> 8 != old_core_id >> 8) {
-    //     fflush(t_args->out);
-    // }
+    return;
 }

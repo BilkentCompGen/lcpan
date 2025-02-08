@@ -16,6 +16,8 @@ LCPTOOLS_LDFLAGS := -L$(CURRENT_DIR)/lcptools/lib -llcptools -Wl,-rpath,$(CURREN
 $(TARGET): $(OBJS)
 	$(GXX) $(CXXFLAGS) $(LCPTOOLS_CXXFLAGS) -o $@ $^ $(LCPTOOLS_LDFLAGS) -lm -lpthread
 	rm $(OBJS)
+	@mkdir -p bin
+	mv $(TARGET) bin
 
 %.o: %.c
 	$(GXX) $(CXXFLAGS) $(LCPTOOLS_CXXFLAGS) -c $< -o $@

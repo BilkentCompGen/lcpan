@@ -12,7 +12,7 @@
 #define MIN(a,b) (((a)<(b))?(a):(b))
 #define MAX(a,b) (((a)>(b))?(a):(b))
 
-#define MARGIN 4
+#define SV_LEN_BOUNDARY 50
 
 /**
  * @brief Frees memory allocated for the opt_arg structure.

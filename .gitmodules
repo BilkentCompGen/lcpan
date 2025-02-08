@@ -1,3 +1,4 @@
 [submodule "lcptools"]
 	path = lcptools
 	url = https://github.com/BilkentCompGen/lcptools.git
+	branch = biolcp

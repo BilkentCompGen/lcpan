@@ -39,6 +39,7 @@ void print_ref_seq(const struct ref_seq *seqs, int is_rgfa, int no_overlap, FILE
 
 	printf("[INFO] Writing reference seq to output file.\n");
 
+    fprintf(out, "H\tVN:Z:1.1\n");
 	// iterate through each chromosome
 	for (int i=0; i<seqs->size; i++) {
 		const char *seq_name = seqs->chrs[i].seq_name;
@@ -124,7 +125,6 @@ void variate_snp(struct t_arg *t_args, const struct chr *chrom, const char *alt_
 
 	// print new node connecting directly from latest core before and first core after the altenrating token
     // print new node
-    fprintf(t_args->out, "H\tVN:Z:1.1\n");
     fprintf(t_args->out, "S\ts%d.%ld\t", t_args->thread_id, t_args->core_id_index);
     fwrite(chrom->seq+marginal_start, 1, start_loc-marginal_start, t_args->out);
     fprintf(t_args->out, "%s", alt_token);

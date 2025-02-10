@@ -45,7 +45,7 @@ Run the tool using the following command-line options:
 - `-t | --thread`: Thread number (integer) [default 1].
 - `--gfa`: Output as graphical fragment assembly.
 - `--rgfa`: Output as reference gfa [default].
-- `--tload-factor`: Ho much workload is assigned per thread relative to the pool size [default 3].
+- `--tload-factor`: Ho much workload is assigned per thread relative to the pool size [default 2].
 - `-v`: Verbose [default false].
 
 ### Merging Files

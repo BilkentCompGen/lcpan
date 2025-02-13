@@ -33,8 +33,14 @@ You can run `make clean` command to remove cleanup binaries and the executable.
 Run the tool using the following command-line options:
 
 ```sh
-./lcpan -r <fasta_file> -v <vcf_file> -o <output_rgfa_file> -l <lcp_level> -t <thread_number> -p <prefix> [--rgfa | --gfa]
+./lcpan [PROGRAM] [OPTIONS]
 ```
+
+Program:
+- `-vg`: Variation graph construction using reference genome and VCF.
+- `-ldbg`: Variation graph construction using LCP-spaced de Bruijn Graph.
+
+Options:
 
 - `-r | --ref`: Path to the input FASTA file.
 - `-v | --vcf`: Path to the input VCF file.
@@ -50,16 +56,22 @@ Run the tool using the following command-line options:
 
 ### Merging Files
 
-The `lcpan` tool runs in parallel, hence, it generates multiple output file. Note that these files are dependent, expect the first file (as it stores the partitioned reference genome). At the end of the program execution, you can run `merge.sh lcpan.log` script that will merge all the files.
+The `lcpan` tool runs in parallel, hence, it generates multiple output file. Note that these files are dependent, expect the first file (as it stores the partitioned reference genome). At the end of the program execution, you can run `lcpan-merge.sh lcpan.log` script that will merge all the files.
 
-### Example
+### Example 1
 
 ```sh
-./lcpan -r genome.fasta -v variations.vcf -o output.rgfa -l 3
-bash merge.sh lcpan.log
+./lcpan -vg -r genome.fasta -v variations.vcf -o output.rgfa -l 3
+bash lcpan-merge.sh lcpan.log
 ```
 
 This command constructs a variation graph for the input FASTA and VCF files, applying LCP parsing at level 4 using single thread, and saves the result to `output.rgfa` and `output.rgfa.0` files. Then, you need to append content of `output.rgfa.0` file into `output.rgfa` file.
+
+### Example 2
+
+```sh
+./lcpan -ldbg -r genome.fasta -o output.rgfa
+```
 
 ## Licence
 

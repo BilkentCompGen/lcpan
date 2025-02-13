@@ -13,7 +13,7 @@ class RGFA:
     def add_segment(self, line):
         fields = line.split("\t")
         segment_name = fields[1]
-        sequence = fields[2]
+        sequence = fields[2].strip()
         self.segments[segment_name] = sequence
 
     def add_link(self, line):

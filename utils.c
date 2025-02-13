@@ -1,5 +1,45 @@
 #include "utils.h"
 
+int binary_search(uint64_t *arr, uint64_t size, uint64_t key) {
+    int low = 0, high = size - 1;
+
+    while (low <= high) {
+        int mid = low + (high - low) / 2;
+        if (arr[mid] == key) {
+            return mid;
+        }
+        if (arr[mid] < key) {
+            low = mid + 1;
+        } else {
+            high = mid - 1;
+        }
+    }
+    return -1;
+}
+
+void quicksort(uint64_t *array, int low, int high) {
+    if (low < high) {
+        uint64_t pivot = array[high];
+        int i = low - 1;
+
+        for (int j = low; j < high; j++) {
+            if (array[j] < pivot) {
+                i++;
+                uint64_t temp = array[i];
+                array[i] = array[j];
+                array[j] = temp;
+            }
+        }
+
+        uint64_t temp = array[i+1];
+        array[i+1] = array[high];
+        array[high] = temp;
+
+        quicksort(array, low, i);
+        quicksort(array, i + 2, high);
+    }
+}
+
 void free_opt_arg(struct opt_arg *args) {
     free(args->fasta_fai_path);
 	// the rest of the args char * will be freed by getops. hence, no need to free them
@@ -35,7 +75,100 @@ void print_link(int tid1, uint64_t cid1, char sign1, int tid2, uint64_t cid2, ch
     }
 }
 
-void print_ref_seq(const struct ref_seq *seqs, int is_rgfa, int no_overlap, FILE *out) {
+void print_ref_seq_ldbg(struct ref_seq *seqs, FILE *out) {
+
+    printf("[INFO] Writing seq to output file.\n");
+
+    fprintf(out, "H\tVN:Z:1.1\n");
+
+    uint64_t total_cores = 0;
+    for (int i=0; i<seqs->size; i++) total_cores += seqs->chrs[i].cores_size;
+
+    uint64_t *segment_ids = (uint64_t *)malloc(total_cores * sizeof(uint64_t));
+    uint64_t index = 0;
+
+    for (int i=0; i<seqs->size; i++) {
+        const struct chr chrom = seqs->chrs[i];
+        for (int j=0; j<chrom.cores_size; j++) segment_ids[index++] = chrom.cores[j].id;
+    }
+
+    quicksort(segment_ids, 0, index-1);
+
+    uint64_t size=0, iter=1;
+
+    while (iter<index) {
+        if (segment_ids[size] != segment_ids[iter]) {
+            size++;
+            segment_ids[size] = segment_ids[iter];
+        }
+        iter++;
+    }
+
+    size++; // total distinct count
+
+    printf("distint count %ld\n", size);
+
+    uint64_t *bit_arr = (uint64_t *)calloc(size, sizeof(uint64_t));
+
+    for (int i=0; i<seqs->size; i++) {
+		struct simple_core *cores = seqs->chrs[i].cores;
+		const char *seq = seqs->chrs[i].seq;
+
+        if (seqs->chrs[i].cores_size) {
+            int index = binary_search(segment_ids, size, cores[0].id);
+            if (index != -1) {
+                uint64_t bit = (1ULL << (index % 64));
+                if (!(bit_arr[index / 64] & bit)) {
+                    const struct simple_core *curr_core = &(seqs->chrs[i].cores[0]);
+                    uint64_t curr_start = curr_core->start;
+                    uint64_t curr_end = curr_core->end;
+                    int seq_len = (int)(curr_end-curr_start);
+
+                    fprintf(out, "S\ts%lu\t", curr_core->id);
+                    fwrite(seq+curr_start, 1, seq_len, out); 
+                    fprintf(out, "\n");
+
+                    bit_arr[index / 64] |= bit;
+                }
+            }
+        }
+		
+		for (int j=1; j<seqs->chrs[i].cores_size; j++) {
+            // binary search the index of curr_core->id in segmet_ids and if in that index
+            int index = binary_search(segment_ids, size, cores[j].id);
+            if (index != -1) {
+                const struct simple_core *curr_core = &(seqs->chrs[i].cores[j]);
+                const struct simple_core *prev_core = &(seqs->chrs[i].cores[j-1]);
+                uint64_t curr_start = curr_core->start;
+
+                uint64_t bit = (1ULL << (index % 64));
+                if (!(bit_arr[index / 64] & bit)) {
+                    
+                    uint64_t curr_end = curr_core->end;
+                    int seq_len = (int)(curr_end-curr_start);
+
+                    fprintf(out, "S\ts%lu\t", curr_core->id);
+                    fwrite(seq+curr_start, 1, seq_len, out); 
+                    fprintf(out, "\n");
+
+                    
+                    bit_arr[index / 64] |= bit;
+                }
+
+                int overlap = (int)(prev_core->end-curr_start);
+                if (0 < overlap) {
+                    fprintf(out, "L\ts%lu\t+\ts%lu\t+\t%dM\n", prev_core->id, curr_core->id, overlap);
+                }
+            }
+		}
+	}
+
+    free(bit_arr);
+
+    printf("[INFO] Writing process completed.\n");
+}
+
+void print_ref_seq_vg(const struct ref_seq *seqs, int is_rgfa, int no_overlap, FILE *out) {
 
 	printf("[INFO] Writing reference seq to output file.\n");
 
@@ -231,18 +364,18 @@ void variate(struct t_arg *t_args, const struct chr *chrom, const char *org_seq,
 
 	if (latest_core_index == 0 || chrom->cores[latest_core_index].end < chrom->cores[latest_core_index+1].start)  {
         t_args->failed_var_count += 1;
-        pthread_mutex_lock(t_args->out_err_mutex);
-        fprintf(t_args->out_err, "VARIATE-MARGIN-START:\tCHROM: %s,\tPOSITION: %ld,\tORG: %s,\tALT: %s,\tlatest_core_index: %ld\n", chrom->seq_name, start_loc, org_seq, alt_token, latest_core_index);
-        fflush(t_args->out_err);
-        pthread_mutex_unlock(t_args->out_err_mutex);
+        pthread_mutex_lock(t_args->out_log_mutex);
+        fprintf(t_args->out_log, "VARIATE-MARGIN-START:\tCHROM: %s,\tPOSITION: %ld,\tORG: %s,\tALT: %s,\tlatest_core_index: %ld\n", chrom->seq_name, start_loc, org_seq, alt_token, latest_core_index);
+        fflush(t_args->out_log);
+        pthread_mutex_unlock(t_args->out_log_mutex);
 		return;
 	}
 	if (first_core_after+1 >= (uint64_t)chrom->cores_size || chrom->cores[first_core_after-1].end < chrom->cores[first_core_after].start) {
         t_args->failed_var_count += 1;
-        pthread_mutex_lock(t_args->out_err_mutex);
-        fprintf(t_args->out_err, "VARIATE-MARGIN-END:\tCHROM: %s,\tPOSITION: %ld,\tORG: %s,\tALT: %s,\tfirst_core_after: %ld,\tcores_size: %d\n", chrom->seq_name, start_loc, org_seq, alt_token, first_core_after, chrom->cores_size);
-        fflush(t_args->out_err);
-        pthread_mutex_unlock(t_args->out_err_mutex);
+        pthread_mutex_lock(t_args->out_log_mutex);
+        fprintf(t_args->out_log, "VARIATE-MARGIN-END:\tCHROM: %s,\tPOSITION: %ld,\tORG: %s,\tALT: %s,\tfirst_core_after: %ld,\tcores_size: %d\n", chrom->seq_name, start_loc, org_seq, alt_token, first_core_after, chrom->cores_size);
+        fflush(t_args->out_log);
+        pthread_mutex_unlock(t_args->out_log_mutex);
 		return;
 	}
 

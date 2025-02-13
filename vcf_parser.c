@@ -57,10 +57,10 @@ void t_read_vcf(void *args) {
         index = strtok_r(NULL, "\t", &saveptr); // get index  
         if (index == NULL) {
             t_args->invalid_line_count += 1;
-            pthread_mutex_lock(t_args->out_err_mutex);
-            fprintf(t_args->out_err, "VCF: no index at line: %s\n", line);
-            fflush(t_args->out_err);
-            pthread_mutex_unlock(t_args->out_err_mutex);
+            pthread_mutex_lock(t_args->out_log_mutex);
+            fprintf(t_args->out_log, "VCF: no index at line: %s\n", line);
+            fflush(t_args->out_log);
+            pthread_mutex_unlock(t_args->out_log_mutex);
             free(line);
             continue;
         }
@@ -80,10 +80,10 @@ void t_read_vcf(void *args) {
 
         if (chrom_index == -1) {
             t_args->invalid_line_count += 1;
-            pthread_mutex_lock(t_args->out_err_mutex);
-            fprintf(t_args->out_err, "VCF: Couldn't locate chrom %s from VCF in reference\n", chrom);
-            fflush(t_args->out_err);
-            pthread_mutex_unlock(t_args->out_err_mutex);
+            pthread_mutex_lock(t_args->out_log_mutex);
+            fprintf(t_args->out_log, "VCF: Couldn't locate chrom %s from VCF in reference\n", chrom);
+            fflush(t_args->out_log);
+            pthread_mutex_unlock(t_args->out_log_mutex);
             free(line);
             continue;
         }
@@ -95,10 +95,10 @@ void t_read_vcf(void *args) {
             char *alt_token_copy = strdup(alt_token); 
             if (alt_token_copy == NULL) {
                 t_args->failed_var_count += 1;
-                pthread_mutex_lock(t_args->out_err_mutex);
-                fprintf(t_args->out_err, "VCF: Memory allocation failed for alt_token_copy.\n");
-                fflush(t_args->out_err);
-                pthread_mutex_unlock(t_args->out_err_mutex);
+                pthread_mutex_lock(t_args->out_log_mutex);
+                fprintf(t_args->out_log, "VCF: Memory allocation failed for alt_token_copy.\n");
+                fflush(t_args->out_log);
+                pthread_mutex_unlock(t_args->out_log_mutex);
                 continue;
             }
             variate(t_args, &(t_args->seqs->chrs[chrom_index]), seq, alt_token_copy, offset);
@@ -111,19 +111,37 @@ void t_read_vcf(void *args) {
     }
 }
 
-void read_vcf(struct opt_arg *args, struct ref_seq *seqs, FILE *out_err) {
+void read_vcf(struct opt_arg *args, struct ref_seq *seqs) {
 
     printf("[INFO] Started processing variation file.\n");
 
+    FILE *out_log;
+    if (args->prefix == NULL) {
+        char out_err_filename[10];
+        snprintf(out_err_filename, sizeof(out_err_filename), "lcpan.log");
+        out_log = fopen(out_err_filename, "w");
+    } else {
+        char out_err_filename[strlen(args->prefix)+5];
+        snprintf(out_err_filename, sizeof(out_err_filename), "%s.log", args->prefix);
+        out_log = fopen(out_err_filename, "w");
+    }
+    
+    if (out_log == NULL) {
+        fprintf(stderr, "Couldn't open error log file\n");
+        exit(EXIT_FAILURE);
+    }
+    fprintf(out_log, "%s\n", args->gfa_path);
+    fprintf(out_log, "%d\n", args->thread_number);
+
     struct t_arg *t_args = (struct t_arg*)malloc(args->thread_number * sizeof(struct t_arg));
     pthread_mutex_t queue_mutex = PTHREAD_MUTEX_INITIALIZER;
-    pthread_mutex_t out_err_mutex = PTHREAD_MUTEX_INITIALIZER;
+    pthread_mutex_t out_log_mutex = PTHREAD_MUTEX_INITIALIZER;
     pthread_cond_t cond_not_full = PTHREAD_COND_INITIALIZER;
     pthread_cond_t cond_not_empty = PTHREAD_COND_INITIALIZER;
     int exit_signal = 0;
 
     pthread_mutex_init(&queue_mutex, NULL);
-    pthread_mutex_init(&out_err_mutex, NULL);
+    pthread_mutex_init(&out_log_mutex, NULL);
     pthread_cond_init(&cond_not_full, NULL);
     pthread_cond_init(&cond_not_empty, NULL);
 
@@ -149,10 +167,10 @@ void read_vcf(struct opt_arg *args, struct ref_seq *seqs, FILE *out_err) {
         t_args[i].invalid_line_count = 0;
         t_args[i].bubble_count = 0;
         t_args[i].out = out;
-        t_args[i].out_err = out_err;
+        t_args[i].out_log = out_log;
         t_args[i].queue = &(queue);
         t_args[i].queue_mutex = &queue_mutex;
-        t_args[i].out_err_mutex = &out_err_mutex;
+        t_args[i].out_log_mutex = &out_log_mutex;
         t_args[i].cond_not_full = &cond_not_full;
         t_args[i].cond_not_empty = &cond_not_empty;
         t_args[i].exit_signal = &exit_signal;
@@ -171,7 +189,7 @@ void read_vcf(struct opt_arg *args, struct ref_seq *seqs, FILE *out_err) {
 
     FILE *file = fopen(args->vcf_path, "r");
     if (file == NULL) {
-        fprintf(out_err, "VCF: Couldn't open file %s\n", args->vcf_path);
+        fprintf(out_log, "VCF: Couldn't open file %s\n", args->vcf_path);
         exit(EXIT_FAILURE);
     }
 
@@ -185,7 +203,7 @@ void read_vcf(struct opt_arg *args, struct ref_seq *seqs, FILE *out_err) {
             current_size *= 2;
             char *temp_line = (char *)realloc(line, current_size);
             if (!temp_line) {
-                fprintf(out_err, "VCF: Memory reallocation failed.\n");
+                fprintf(out_log, "VCF: Memory reallocation failed.\n");
                 free(line);
                 fclose(file);
                 return;
@@ -210,7 +228,7 @@ void read_vcf(struct opt_arg *args, struct ref_seq *seqs, FILE *out_err) {
         char *queue_line = strdup(line);
         if (!queue_line) {
             args->invalid_line_count += 1;
-            fprintf(out_err, "VCF: Memory allocation failed.\n");
+            fprintf(out_log, "VCF: Memory allocation failed.\n");
             continue;
         }
         line_queue_push(&queue, queue_line, &queue_mutex, &cond_not_full, &cond_not_empty);
@@ -223,7 +241,7 @@ void read_vcf(struct opt_arg *args, struct ref_seq *seqs, FILE *out_err) {
     tpool_wait(tm);
     tpool_destroy(tm);
     pthread_mutex_destroy(&queue_mutex);
-    pthread_mutex_destroy(&out_err_mutex);
+    pthread_mutex_destroy(&out_log_mutex);
     pthread_cond_destroy(&cond_not_full);
     pthread_cond_destroy(&cond_not_empty);
 
@@ -236,6 +254,8 @@ void read_vcf(struct opt_arg *args, struct ref_seq *seqs, FILE *out_err) {
 
     free(queue.lines);
     free(t_args);
+
+    fclose(out_log);
 
     printf("[INFO] Ended processing variation file. line_count: %d\n", line_count);
 }

@@ -1,6 +1,62 @@
 #include "fa_parser.h"
 
-void process_chrom(char *sequence, uint64_t seq_size, int lcp_level, struct chr *chrom, uint64_t *core_id_index) {
+uint64_t MurmurHash3_32(const void *key, int len) {
+    const uint8_t *data = (const uint8_t *)key;
+    const int nblocks = len / 4;
+
+    uint32_t h1 = 42;
+
+    const uint32_t c1 = 0xcc9e2d51;
+    const uint32_t c2 = 0x1b873593;
+
+    // Body: Process blocks of 4 bytes at a time
+    const uint32_t *blocks = (const uint32_t *)(data + nblocks * 4);
+
+    for (int i = -nblocks; i; i++) {
+        uint32_t k1 = blocks[i];
+
+        k1 *= c1;
+        k1 = (k1 << 15) | (k1 >> (32 - 15));
+        k1 *= c2;
+
+        h1 ^= k1;
+        h1 = (h1 << 15) | (h1 >> (32 - 15));
+        h1 = h1 * 5 + 0xe6546b64;
+    }
+
+    // Tail: Process remaining bytes
+    const uint8_t *tail = (const uint8_t *)(data + nblocks * 4);
+
+    uint32_t k1 = 0;
+
+    switch (len & 3) {
+    case 3:
+        k1 ^= tail[2] << 16;
+        break;
+    case 2:
+        k1 ^= tail[1] << 8;
+        break;
+    case 1:
+        k1 ^= tail[0];
+        k1 *= c1;
+        k1 = (k1 << 15) | (k1 >> (32 - 15));
+        k1 *= c2;
+        h1 ^= k1;
+    }
+
+    // Finalization: Mix the hash to ensure the last few bits are fully mixed
+    h1 ^= len;
+
+    /* fmix32 */
+    h1 ^= h1 >> 16;
+    h1 *= 0x85ebca6b;
+    h1 ^= h1 >> 13;
+    h1 *= 0xc2b2ae35;
+    h1 ^= h1 >> 16;
+    return (uint64_t)h1;
+}
+
+void process_chrom_vg(char *sequence, uint64_t seq_size, int lcp_level, struct chr *chrom, uint64_t *core_id_index) {
     uint64_t id = *core_id_index;
 
     uint64_t estimated_core_size = (int)(seq_size / pow(1.5, lcp_level));
@@ -51,6 +107,54 @@ void process_chrom(char *sequence, uint64_t seq_size, int lcp_level, struct chr 
     }
 
     *core_id_index = id;
+}
+
+void process_chrom_ldbg(char *sequence, uint64_t seq_size, int lcp_level, struct chr *chrom) {
+    uint64_t estimated_core_size = (int)(seq_size / pow(1.5, lcp_level));
+    chrom->cores_size = 0;
+
+    if (estimated_core_size == 0) {
+        chrom->cores = NULL;
+        return;
+    }
+    
+    chrom->cores = (struct simple_core*)malloc(estimated_core_size * sizeof(struct simple_core));
+
+    uint64_t index = 0;
+    uint64_t last_core_index = 0;
+
+    while (index < seq_size) {
+        while (index < seq_size && sequence[index] == 'N') {
+            index++;
+        }
+        uint64_t end = index;
+        
+        while (end < seq_size && sequence[end] != 'N') {
+            end++;
+        }
+
+        struct lps str;
+        init_lps_offset(&str, sequence+index, end-index, index);
+        lps_deepen(&str, lcp_level);
+
+        for (int i=0; i<str.size; i++) {
+            chrom->cores[last_core_index].id = (MurmurHash3_32(sequence + str.cores[i].start, (int)(str.cores[i].end-str.cores[i].start)) << 32) | str.cores[i].label;
+            chrom->cores[last_core_index].start = str.cores[i].start;
+            chrom->cores[last_core_index].end = str.cores[i].end;
+            last_core_index++;
+        }
+
+        chrom->cores_size = last_core_index;
+        index = end;
+
+        free_lps(&str); 
+    }
+
+    struct simple_core *temp = (struct simple_core*)realloc(chrom->cores, chrom->cores_size * sizeof(struct simple_core));
+
+    if (temp != NULL) {
+        chrom->cores = temp;
+    }
 }
 
 void read_fasta(struct opt_arg *args, struct ref_seq *seqs) {
@@ -127,7 +231,11 @@ void read_fasta(struct opt_arg *args, struct ref_seq *seqs) {
 
         if (line[0] == '>') {
             if (sequence_size != 0) {
-                process_chrom(seqs->chrs[index].seq, sequence_size, args->lcp_level, &(seqs->chrs[index]), &(args->core_id_index));
+                if (args->program == VG) {
+                    process_chrom_vg(seqs->chrs[index].seq, sequence_size, args->lcp_level, &(seqs->chrs[index]), &(args->core_id_index));
+                } else if (args->program == LDBG) {
+                    process_chrom_ldbg(seqs->chrs[index].seq, sequence_size, args->lcp_level, &(seqs->chrs[index]));
+                }
                 sequence_size = 0;
                 index++;
             }
@@ -139,7 +247,11 @@ void read_fasta(struct opt_arg *args, struct ref_seq *seqs) {
     }
 
     if (sequence_size != 0) {
-        process_chrom(seqs->chrs[index].seq, sequence_size, args->lcp_level, &(seqs->chrs[index]), &(args->core_id_index));
+        if (args->program == VG) {
+            process_chrom_vg(seqs->chrs[index].seq, sequence_size, args->lcp_level, &(seqs->chrs[index]), &(args->core_id_index));
+        } else if (args->program == LDBG) {
+            process_chrom_ldbg(seqs->chrs[index].seq, sequence_size, args->lcp_level, &(seqs->chrs[index]));
+        }
         index++;
     }
 

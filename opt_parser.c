@@ -1,9 +1,9 @@
 #include "opt_parser.h"
 
-void validate_file(const char *filename) {
+void validate_file(const char *filename, const char* type) {
 	FILE *file = fopen(filename, "r");
 	if (file == NULL) {
-		fprintf(stderr, "Couldn't open %s\n", filename); 
+		fprintf(stderr, "[ERROR] Couldn't open %s (%s)\n", type, filename); 
 		exit(EXIT_FAILURE);
 	}
 	fclose(file);
@@ -11,22 +11,63 @@ void validate_file(const char *filename) {
 
 int summarize(struct opt_arg *args) {
     printf("[INFO] Ref: %s\n", args->fasta_path);
-    printf("[INFO] VCF: %s\n", args->vcf_path);
+    if (args->program == VG) {
+        printf("[INFO] VCF: %s\n", args->vcf_path);
+    }
     printf("[INFO] Output: %s\n", args->gfa_path);
     printf("[INFO] GFA: %s\n", args->is_rgfa ? "rGFA" : "GFA");
     printf("[INFO] Non-Overlapping: %s\n", args->no_overlap ? "yes" : "no");
     printf("[INFO] LCP level: %d\n", args->lcp_level);
     printf("[INFO] Thread number: %d\n", args->thread_number);
-    printf("[INFO] Prefix: %s\n", args->prefix);
+    if (args->prefix != NULL) {
+        printf("[INFO] Prefix: %s\n", args->prefix);
+    } else {
+        printf("[INFO] Prefix: lcpan\n");
+    }
     return 1;
+}
+
+void printUsage() {
+    fprintf(stderr, "Usage: ./lcpan [PROGRAM] [OPTIONS]\n\n");
+    fprintf(stderr, "[PROGRAM]: \n");
+    fprintf(stderr, "\t-vg:         Uses a variation graph-based approach.\n");
+    fprintf(stderr, "\t-ldbg:       Uses LCP based de-Bruijn graph approach in construction.\n");
+    // fprintf(stderr, "\t-aloe-vera:  Uses progressive genome alignment.\n");
 }
 
 void parse_opts(int argc, char* argv[], struct opt_arg *args) {
 
-    if (argc<7) {
-        fprintf(stderr, "Format: ./lcpan -f ref.fa -v var.vcf -o out.rgfa [OPTIONS]\n");
+    if (argc<2) {
+        printUsage();
         exit(EXIT_FAILURE);
     }
+
+    if (strcmp(argv[1], "-vg") == 0) {
+        if (argc<7) {
+            fprintf(stderr, "Format: ./lcpan -vg -f ref.fa -v var.vcf -o out.rgfa [OPTIONS]\n");
+            exit(EXIT_FAILURE);
+        }
+        args->program = VG;
+    } else if (strcmp(argv[1], "-ldbg") == 0) {
+        if (argc<5) {
+            fprintf(stderr, "Format: ./lcpan -ldbg -f ref.fa -o out.rgfa [OPTIONS]\n");
+            exit(EXIT_FAILURE);
+        }
+        args->program = LDBG;
+    } 
+    // else if (strcmp(argv[1], "-aloe-vera") == 0) {
+    //     if (argc<5) {
+    //         fprintf(stderr, "Format: ./lcpan -aloe-vera -f ref.fa -o out.rgfa [OPTIONS]\n");
+    //         exit(EXIT_FAILURE);
+    //     }
+    //     args->program = ALOEVERA;
+    // } 
+    else {
+        printUsage();
+        exit(EXIT_FAILURE);
+    }
+
+    optind = 2;
     
 	int opt;
     args->core_id_index = 0;
@@ -114,18 +155,29 @@ void parse_opts(int argc, char* argv[], struct opt_arg *args) {
         }
     }
 
-	validate_file(args->fasta_path);
-	validate_file(args->vcf_path);
+    if (args->fasta_path == NULL) {
+        fprintf(stderr, "[ERROR] Missing reference file.\n");
+        exit(EXIT_FAILURE);
+    }
+    if (args->program == VG && args->vcf_path == NULL) {
+        fprintf(stderr, "[ERROR] Missing VCF file.\n");
+        exit(EXIT_FAILURE);
+    }
+
+	validate_file(args->fasta_path, "fa");
+    if (args->program == VG) {
+        validate_file(args->vcf_path, "vcf");
+    }
 
     char *fai_path = malloc(strlen(args->fasta_path) + 5);
     if (fai_path == NULL) {
-        fprintf(stderr, "Memory allocation failed\n");
+        fprintf(stderr, "[ERROR] Memory allocation failed\n");
         exit(EXIT_FAILURE);
     }
     sprintf(fai_path, "%s.fai", args->fasta_path);
     args->fasta_fai_path = fai_path;
     
-    validate_file(args->fasta_fai_path);
+    validate_file(args->fasta_fai_path, "fai");
 
     (void)(args->verbose && summarize(args));
 }

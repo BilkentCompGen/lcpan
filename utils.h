@@ -31,7 +31,21 @@ void free_ref_seq(struct ref_seq *seqs);
 /**
  * @brief Prints reference sequences and their LCP cores in rGFA format.
  *
- * This function outputs the reference sequences and their Locally Consistent
+ * This function outputs the reference sequences (LDBG) and their Locally Consistent
+ * Parsing (LCP) cores in rGFA/GFA format. The cores are printed as segments and
+ * links, depending on the provided options.
+ *
+ * @param seqs       A pointer to the `ref_seq` structure containing the reference
+ *                   sequences and their processed LCP cores.
+ * @param out        A file pointer to the output file where the formatted segments
+ *                   and links will be written.
+ */
+void print_ref_seq_ldbg(struct ref_seq *seqs, FILE *out);
+
+/**
+ * @brief Prints reference sequences and their LCP cores in rGFA format.
+ *
+ * This function outputs the reference sequences (VG) and their Locally Consistent
  * Parsing (LCP) cores in rGFA/GFA format. The cores are printed as segments and
  * links, depending on the provided options.
  *
@@ -43,7 +57,7 @@ void free_ref_seq(struct ref_seq *seqs);
  * @param out        A file pointer to the output file where the formatted segments
  *                   and links will be written.
  */
-void print_ref_seq(const struct ref_seq *seqs, int is_rgfa, int no_overlap, FILE *out);
+void print_ref_seq_vg(const struct ref_seq *seqs, int is_rgfa, int no_overlap, FILE *out);
 
 /**
  * @brief Simulates an alternate sequence, extracts and refines LCP cores, and prints bubbles.

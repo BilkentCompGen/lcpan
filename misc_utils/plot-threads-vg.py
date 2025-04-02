@@ -3,8 +3,8 @@ import numpy as np
 
 # Input data
 threads = [1, 2, 4, 8, 16]
-ram_usage_kb = [9632308, 9626440, 9631456, 9632152, 9626068]  # KB
-execution_time_str = ["1:07:41", "1:12:46", "1:13:01", "1:13:01", "1:10:51"]  # H:MM:SS.ss or MM:SS.ss
+ram_usage_kb = [0, 0, 0, 0, 0]  # KB
+execution_time_str = ["", "", "", "", ""]  # H:MM:SS.ss or MM:SS.ss
 
 # Convert RAM usage to GB
 ram_usage_gb = [x / (1024 ** 2) for x in ram_usage_kb]  # 1 GB = 1024^2 KB

@@ -12,6 +12,13 @@
 #define DEFAULT_THREAD_NUMBER 1
 
 /**
+ * @brief Frees memory allocated for the opt_arg structure.
+ *
+ * @param args A pointer to the `opt_arg` structure to be freed.
+ */
+void free_opt_arg(struct opt_arg *args);
+
+/**
  * @brief Parses command-line options and arguments.
  *
  * This function processes the command-line arguments passed to the program,

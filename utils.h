@@ -8,71 +8,178 @@
 #include <string.h>
 #include <pthread.h>
 
-
 #define MIN(a,b) (((a)<(b))?(a):(b))
 #define MAX(a,b) (((a)>(b))?(a):(b))
 
 #define SV_LEN_BOUNDARY 50
 
 /**
- * @brief Frees memory allocated for the opt_arg structure.
+ * Performs binary search on a sorted array to find the index of a given key.
  *
- * @param args A pointer to the `opt_arg` structure to be freed.
+ * @param arr  Pointer to the sorted array.
+ * @param size Number of elements in the array.
+ * @param key  The value to search for.
+ * @return Index of the key if found, otherwise -1.
  */
-void free_opt_arg(struct opt_arg *args);
+int binary_search(uint64_t *arr, uint64_t size, uint64_t key);
 
 /**
- * @brief Frees memory allocated for the ref_seq structure.
+ * Sorts an array using the quicksort algorithm.
  *
- * @param seqs A pointer to the `ref_seq` structure to be freed.
+ * @param array Pointer to the array to be sorted.
+ * @param low   Starting index of the array (or subarray).
+ * @param high  Ending index of the array (or subarray).
  */
-void free_ref_seq(struct ref_seq *seqs);
+void quicksort(uint64_t *arr, int low, int high);
 
 /**
- * @brief Prints reference sequences and their LCP cores in rGFA format.
+ * Prints three sequences as single segment in GFA or rGFA format.
  *
- * This function outputs the reference sequences (LDBG) and their Locally Consistent
- * Parsing (LCP) cores in rGFA/GFA format. The cores are printed as segments and
- * links, depending on the provided options.
- *
- * @param seqs       A pointer to the `ref_seq` structure containing the reference
- *                   sequences and their processed LCP cores.
- * @param out        A file pointer to the output file where the formatted segments
- *                   and links will be written.
+ * @param id       Sequence identifier.
+ * @param seq1     The first nucleotide sequence.
+ * @param seq1_len Length of the first sequence.
+ * @param seq2     The second nucleotide sequence.
+ * @param seq2_len Length of the second sequence.
+ * @param seq3     The third nucleotide sequence.
+ * @param seq3_len Length of the third sequence.
+ * @param seq_name Name of the sequence.
+ * @param start    Start position of the sequence.
+ * @param rank     Rank of the sequence.
+ * @param is_rgfa  Flag to determine if rGFA format should be used.
+ * @param out      Output file stream.
  */
-void print_ref_seq_ldbg(struct ref_seq *seqs, FILE *out);
+void print_seq3(uint64_t id, const char *seq1, int seq1_len, const char *seq2, int seq2_len, const char *seq3, int seq3_len, const char *seq_name, int start, int rank, int is_rgfa, FILE *out);
 
 /**
- * @brief Prints reference sequences and their LCP cores in rGFA format.
+ * Prints two sequences as single segment in GFA or rGFA format.
  *
- * This function outputs the reference sequences (VG) and their Locally Consistent
- * Parsing (LCP) cores in rGFA/GFA format. The cores are printed as segments and
- * links, depending on the provided options.
- *
- * @param seqs       A pointer to the `ref_seq` structure containing the reference
- *                   sequences and their processed LCP cores.
- * @param is_rgfa    A flag indicating whether to print in rGFA format (1 for rGFA,
- *                   0 for GFA).
- * @param no_overlap A flag indicating if the output should contains overlapping links. 
- * @param out        A file pointer to the output file where the formatted segments
- *                   and links will be written.
+ * @param id       Sequence identifier.
+ * @param seq1     The first nucleotide sequence.
+ * @param seq1_len Length of the first sequence.
+ * @param seq2     The second nucleotide sequence.
+ * @param seq2_len Length of the second sequence.
+ * @param seq_name Name of the sequence.
+ * @param start    Start position of the sequence.
+ * @param rank     Rank of the sequence.
+ * @param is_rgfa  Flag to determine if rGFA format should be used.
+ * @param out      Output file stream.
  */
-void print_ref_seq_vg(const struct ref_seq *seqs, int is_rgfa, int no_overlap, FILE *out);
+void print_seq2(uint64_t id, const char *seq1, int seq1_len, const char *seq2, int seq2_len, const char *seq_name, int start, int rank, int is_rgfa, FILE *out);
 
 /**
- * @brief Simulates an alternate sequence, extracts and refines LCP cores, and prints bubbles.
+ * Prints a sequence in GFA or rGFA format.
  *
- * This function simulates the alternate sequence based on the original sequence
- * and alternate tokens. It extracts LCP cores, refines them with the original
- * sequence, and prints the remaining differences as bubbles in rGFA format.
- * Results and errors are logged to the specified output files.
+ * @param id       Sequence identifier.
+ * @param seq      The nucleotide sequence.
+ * @param seq_len  Length of the sequence.
+ * @param seq_name Name of the sequence.
+ * @param start    Start position of the sequence.
+ * @param rank     Rank of the sequence.
+ * @param is_rgfa  Flag to determine if rGFA format should be used.
+ * @param out      Output file stream.
+ */
+void print_seq(uint64_t id, const char *seq, int seq_len, const char *seq_name, int start, int rank, int is_rgfa, FILE *out);
+
+/**
+ * Prints three sequences as single segment in GFA or rGFA format. Unlike `print_seq`, this function
+ * does not print index, but prints >id to index information (`SN:Z:`)
+ *
+ * @param id       Sequence identifier.
+ * @param seq1     The first nucleotide sequence.
+ * @param seq1_len Length of the first sequence.
+ * @param seq2     The second nucleotide sequence.
+ * @param seq2_len Length of the second sequence.
+ * @param seq3     The third nucleotide sequence.
+ * @param seq3_len Length of the third sequence.
+ * @param seq_name The name/ID of the sequence.
+ * @param order    The index of the sequence (order).
+ * @param start    Start position of the sequence.
+ * @param rank     Rank of the sequence.
+ * @param is_rgfa  Flag to determine if rGFA format should be used.
+ * @param out      Output file stream.
+ */
+void print_seq3_vg(uint64_t id, const char *seq1, int seq1_len, const char *seq2, int seq2_len, const char *seq3, int seq3_len, const char *seq_name, int order, int start, int rank, int is_rgfa, FILE *out);
+
+/**
+ * Prints two sequences as single segment in GFA or rGFA format. Unlike `print_seq`, this function
+ * does not print index, but prints >id to index information (`SN:Z:`)
+ *
+ * @param id       Sequence identifier.
+ * @param seq1     The first nucleotide sequence.
+ * @param seq1_len Length of the first sequence.
+ * @param seq2     The second nucleotide sequence.
+ * @param seq2_len Length of the second sequence.
+ * @param seq_name The name/ID of the sequence.
+ * @param order    The index of the sequence (order).
+ * @param start    Start position of the sequence.
+ * @param rank     Rank of the sequence.
+ * @param is_rgfa  Flag to determine if rGFA format should be used.
+ * @param out      Output file stream.
+ */
+void print_seq2_vg(uint64_t id, const char *seq1, int seq1_len, const char *seq2, int seq2_len, const char *seq_name, int order, int start, int rank, int is_rgfa, FILE *out);
+
+/**
+ * Prints a sequence in GFA or rGFA format. Unlike `print_seq`, this function
+ * does not print index, but prints >id to index information (`SN:Z:`)
+ *
+ * @param id       Sequence identifier.
+ * @param seq      The nucleotide sequence.
+ * @param seq_len  Length of the sequence.
+ * @param seq_name The name/ID of the sequence.
+ * @param order    The index of the sequence (order).
+ * @param start    Start position of the sequence.
+ * @param rank     Rank of the sequence.
+ * @param is_rgfa  Flag to determine if rGFA format should be used.
+ * @param out      Output file stream.
+ */
+void print_seq_vg(uint64_t id, const char *seq, int seq_len, const char *seq_name, int order, int start, int rank, int is_rgfa, FILE *out);
+
+/**
+ * Prints a link between two sequences in GFA format.
+ *
+ * @param id1        Identifier of the first sequence.
+ * @param sign1      Orientation of the first sequence ('+' or '-').
+ * @param id2        Identifier of the second sequence.
+ * @param sign2      Orientation of the second sequence ('+' or '-').
+ * @param overlap    Length of the overlap between the sequences.
+ * @param out        Output file stream.
+ */
+void print_link(uint64_t id1, char sign1, uint64_t id2, char sign2, uint64_t overlap, FILE *out);
+
+/**
+ * Finds the latest core index before a given range and the first core index after it.
+ *
+ * @param start_loc         Start location of the range.
+ * @param end_loc           End location of the range.
+ * @param chrom             Pointer to the chromosome structure containing core regions.
+ * @param start_index       Estimated start index of LCP core to search.
+ * @param latest_core_index Pointer to store the latest core index before start_loc.
+ * @param first_core_after  Pointer to store the first core index after end_loc.
+ */
+void find_boundaries(uint64_t start_loc, uint64_t end_loc, const struct chr *chrom, uint64_t start_index, uint64_t *latest_core_index, uint64_t *first_core_after);
+
+/**
+ * Modifies start indices of the LCP cores if no overlap is allowed.
  * 
- * @param t_args           A pointer to the `t_arg` structure containing arguments.
- * @param chrom            A pointer to the `chr` structure representing the chromosome.
- * @param org_seq          The original sequence string.
- * @param alt_token        The alternate sequence token.
- * @param start_loc        The starting location of the variation.
+ * @param seqs       The LCP cores to be refined.
+ * @param no_overlap Boolean indicator that makes refinement is it is set to 1.
  */
-void variate(struct t_arg *t_args, const struct chr *chrom, const char *org_seq, const char *alt_token, uint64_t start_loc);
+void refine_seqs(struct ref_seq *seqs, int no_overlap);
+
+/**
+ * Modifies start indices of the LCP cores if no overlap is allowed.
+ * 
+ * @param str        The LCP cores to be refined.
+ * @param no_overlap Boolean indicator that makes refinement is it is set to 1.
+ */
+void refine_seq(struct lps *str, int no_overlap);
+
+/**
+ * Prints all Paths in given sequences. The ids should be initialized
+ * 
+ * @param ref_seq   The reference sequences
+ * @param out       Output file to write path.
+ */
+void print_path(struct ref_seq *seqs, FILE *out);
 
 #endif

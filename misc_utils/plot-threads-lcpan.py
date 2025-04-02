@@ -3,24 +3,43 @@ import numpy as np
 
 # Input data
 threads = [1, 2, 4, 8, 16]
-ram_usage_kb = [7250784, 7790140, 7790696, 8809136, 8945664]  # KB
-execution_time_str = ["12:24.05", "8:12.98", "5:57.42", "4:48.25", "5:02.95"]  # H:MM:SS.ss or MM:SS.ss
+# LCPan VG
+ram_usage_kb = [0, 0, 0, 0, 0]  # KB
+execution_time_str = ["", "", "", "", ""]  # H:MM:SS.ss or MM:SS.ss
+merge_time_str = ["", "", "", "", ""]  # H:MM:SS.ss or MM:SS.ss
+# LCPan VGX
+# ram_usage_kb = [0, 0, 0, 0, 0]  # KB
+# execution_time_str = ["", "", "", "", ""]  # H:MM:SS.ss or MM:SS.ss
+# merge_time_str = ["", "", "", "", ""]  # H:MM:SS.ss or MM:SS.ss
+# VG-toolkit
+# ram_usage_kb = [0, 0, 0, 0, 0]  # KB
+# execution_time_str = ["", "", "", "", ""]  # H:MM:SS.ss or MM:SS.ss
+# merge_time_str = ["", "", "", "", ""]
 
 # Convert RAM usage to GB
 ram_usage_gb = [x / (1024 ** 2) for x in ram_usage_kb]  # 1 GB = 1024^2 KB
 
 # Convert execution time to seconds
-def time_to_seconds(time_str):
-    parts = time_str.split(":")
-    if len(parts) == 3:  # H:MM:SS.ss
-        hours, minutes, seconds = int(parts[0]), int(parts[1]), float(parts[2])
-    elif len(parts) == 2:  # MM:SS.ss
-        hours, minutes, seconds = 0, int(parts[0]), float(parts[1])
+def time_to_seconds(exec_str, merge_str):
+    exec_parts = exec_str.split(":")
+    merge_parts = merge_str.split(":")
+    if len(exec_parts) == 3:  # H:MM:SS.ss
+        exec_hours, exec_minutes, exec_seconds = int(exec_parts[0]), int(exec_parts[1]), float(exec_parts[2])
+    elif len(exec_parts) == 2:  # MM:SS.ss
+        exec_hours, exec_minutes, exec_seconds = 0, int(exec_parts[0]), float(exec_parts[1])
     else:
-        raise ValueError(f"Invalid time format: {time_str}")
-    return hours * 3600 + minutes * 60 + seconds
+        raise ValueError(f"Invalid time format: {exec_str}")
+    if len(merge_parts) == 3:  # H:MM:SS.ss
+        merge_hours, merge_minutes, merge_seconds = int(merge_parts[0]), int(merge_parts[1]), float(merge_parts[2])
+    elif len(merge_parts) == 2:  # MM:SS.ss
+        merge_hours, merge_minutes, merge_seconds = 0, int(merge_parts[0]), float(merge_parts[1])
+    else:
+        raise ValueError(f"Invalid time format: {merge_str}")
+    return (exec_hours * 3600 + exec_minutes * 60 + exec_seconds) + (merge_hours * 3600 + merge_minutes * 60 + merge_seconds)
 
-execution_time_sec = [time_to_seconds(t) for t in execution_time_str]
+execution_time_sec = []
+for i in range(len(execution_time_str)):
+    execution_time_sec.append(time_to_seconds(execution_time_str[i], merge_time_str[i]))
 
 fig, ax1 = plt.subplots()
 
@@ -48,4 +67,9 @@ fig.subplots_adjust(top=0.90, bottom=0.10)  # Increase margins
 
 # Save Plot
 # plt.title('RAM Usage and Execution Time vs Threads')
-plt.savefig('threads-stats-lcpan.eps', format='eps')
+
+plt.savefig('threads-stats-lcpan-vg.png', format='png')
+# plt.savefig('threads-stats-lcpan-vgx.png', format='png')
+# plt.savefig('threads-stats-vg.png', format='png')
+
+# plt.savefig('threads-stats.eps', format='eps')

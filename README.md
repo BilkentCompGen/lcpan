@@ -1,4 +1,4 @@
-# `LCPan` (Variation Graph Çonstruction Using Locally Consistent Parsing)  
+# `LCPan` (Variation Graph Construction Using Locally Consistent Parsing)  
 ![GitHub release (latest SemVer)](https://img.shields.io/github/v/release/BilkentCompGen/lcpan)
 ![GitHub last commit](https://img.shields.io/github/last-commit/BilkentCompGen/lcpan)
 ![GitHub](https://img.shields.io/github/license/BilkentCompGen/lcpan)
@@ -16,7 +16,7 @@ This repository provides an implementation of a tool for constructing variation 
 Clone this repository and use the provided Makefile to build the project.  
 
 ```sh
-git clone https://github.com/BilkentCompGen/lcpan.git
+git clone --recursive --depth 1 https://github.com/BilkentCompGen/lcpan.git
 cd lcpan
 
 # install lcptools
@@ -37,22 +37,23 @@ Run the tool using the following command-line options:
 ```
 
 Program:
-- `-vg`: Variation graph construction using reference genome and VCF.
-- `-ldbg`: Variation graph construction using LCP-spaced de Bruijn Graph.
+- `-vg`: Constructs a variation graph using a reference genome and VCF. In this mode, the initial partitioning is done with LCP, and each segment is further divided into sub-segments if variations are present.
+- `-vgx`: Constructs an expanded variation graph using a reference genome and VCF. In this mode, each variation is represented by an alternative arc, which connects the latest non-overlapping LCP core to the first LCP core afterward.
+- `-lbdg`: Constructs a variation graph using an LCP-spaced de Bruijn graph. This mode generates a compact graph representation based on de Bruijn graph principles.
 
 Options:
 
 - `-r | --ref`: Path to the input FASTA file.
 - `-v | --vcf`: Path to the input VCF file.
-- `-o | --output`: Path to the output rGFA file.
-- `-p | --prefix`: Prefix for the log file [default lcpan].
-- `-s`: Output overlapping gfa.
+- `-p | --prefix`: Prefix for the log and output file [default lcpan].
+- `-s | --no-verlap`: Output overlapping gfa.
 - `-l | --level`: LCP parsing level (integer) [default 5].
 - `-t | --thread`: Thread number (integer) [default 1].
+- `-v | --verbose`: Verbose [default false].
 - `--gfa`: Output as graphical fragment assembly.
 - `--rgfa`: Output as reference gfa [default].
-- `--tload-factor`: Ho much workload is assigned per thread relative to the pool size [default 2].
-- `-v`: Verbose [default false].
+- `--skip-masked`: Skit masked (N) characters. In this mode, segments will contain only nucleotides.
+- `--tload-factor`: How much workload is assigned per thread relative to the pool size [default 2].
 
 ### Merging Files
 
@@ -61,16 +62,16 @@ The `lcpan` tool runs in parallel, hence, it generates multiple output file. Not
 ### Example 1
 
 ```sh
-./lcpan -vg -r genome.fasta -v variations.vcf -o output.rgfa -l 3
-bash lcpan-merge.sh lcpan.log
+./lcpan -vgx -r genome.fasta -v variations.vcf -p output -l 4
+bash lcpan-merge.sh output.log
 ```
 
-This command constructs a variation graph for the input FASTA and VCF files, applying LCP parsing at level 4 using single thread, and saves the result to `output.rgfa` and `output.rgfa.0` files. Then, you need to append content of `output.rgfa.0` file into `output.rgfa` file.
+This command constructs a variation graph for the input FASTA and VCF files, applying LCP parsing at level 4 using single thread, and saves the result to `output.rgfa` and `output.rgfa.0` files. Then, you need to append content of `output.rgfa.0` file into `output.rgfa` file (which will be done by `lcpan-merge.sh` script).
 
 ### Example 2
 
 ```sh
-./lcpan -ldbg -r genome.fasta -o output.rgfa
+./lcpan -lbdg -r genome.fasta -o output.rgfa
 ```
 
 ## Licence

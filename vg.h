@@ -1,11 +1,13 @@
-#ifndef __VCF_PARSER_H__
-#define __VCF_PARSER_H__
+#ifndef __VG_H__
+#define __VG_H__
 
 #include "struct_def.h"
 #include "utils.h"
 #include "tpool.h"
 #include <stdio.h>
 #include <string.h>
+
+#define DEFAULT_ARRAY_CAPACITY 10
 
 /**
  * @brief Reads a VCF file, processes variations, and logs output to files.
@@ -16,11 +18,11 @@
  * to a separate error file. Additionally, it tracks the number of failed
  * variations, invalid lines, and bubble structures encountered.
  *
- * @param args               A pointer to the `opt_arg` structure containing
- *                           input options, including the path to the VCF file.
- * @param seqs               A pointer to the `ref_seq` structure holding the
- *                           reference sequences for variation processing.
+ * @param args A pointer to the `opt_arg` structure containing input options, 
+ *             including the path to the VCF file.
+ * @param seqs A pointer to the `ref_seq` structure holding the reference 
+ *             sequences for variation processing.
  */
-void read_vcf(struct opt_arg *args, struct ref_seq *seqs);
+void vg_read_vcf(struct opt_arg *args, struct ref_seq *seqs);
 
 #endif

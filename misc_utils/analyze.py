@@ -51,6 +51,8 @@ if __name__ == "__main__":
     
     segment_count = 0
     link_count = 0
+    min_len = 0xFFFFFFFFFFFFFFFF
+    max_len = 0
     segment_length_stats = stats()
     overlapping_count_stats = stats()
     
@@ -61,6 +63,13 @@ if __name__ == "__main__":
                 sequence = line_parts[2]
                 segment_length_stats.add_value(len(sequence))
                 segment_count += 1
+                if len(sequence) < min_len:
+                    min_len = len(sequence)
+                if max_len < len(sequence):
+                    max_len = len(sequence)
+                    if max_len == 105498:
+                        print(line[:100])
+                        print(line[max_len-100:])
             elif line_parts[0] == 'L':
                 overlapping_count = int(line_parts[5][:-1])
                 overlapping_count_stats.add_value(overlapping_count)
@@ -75,6 +84,8 @@ if __name__ == "__main__":
         print(f"Segment count: {segment_count}")
         print(f"Segment avg length: {segment_avg_length:.5f}")
         print(f"Segment std length: {segment_std_dev:.5f}")
+        print(f"Segment min. length {min_len}")
+        print(f"Segment max. length {max_len}")
         print(f"Link count: {link_count}")
         print(f"Link overlapping avg length: {link_avg_overlap:.5f}")
         print(f"Link overlapping std length: {link_std_dev:.5f}")

@@ -14,6 +14,10 @@ class RGFA:
         fields = line.split("\t")
         segment_name = fields[1]
         sequence = fields[2].strip()
+        if len(sequence) == 0:
+            print(f"Error: Sequence {segment_name} is empty")
+        if segment_name in self.segments:
+            print(f"Error: Duplicate id for sequence {segment_name} detected")
         self.segments[segment_name] = sequence
 
     def add_link(self, line):

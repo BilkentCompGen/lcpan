@@ -23,6 +23,7 @@ $(TARGET): $(OBJS)
 	$(GXX) $(CXXFLAGS) $(LCPTOOLS_CXXFLAGS) -c $< -o $@
 
 install:
+	@echo "Installing lcptools"
 	cd lcptools && make PREFIX=. install
 
 clean:

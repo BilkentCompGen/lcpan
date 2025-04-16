@@ -1,5 +1,44 @@
 #include "vg.h"
 
+/**
+ * Print sequence. It may happen when there is a chromosomal jump (i.e., no variation
+ * on entire chromosome.)
+ * 
+ */
+void vg_print_seq(struct chr *chrom, int is_rgfa, FILE *out_segment, FILE *out_link) {
+    if (chrom->cores_size) {
+        chrom->ids = NULL; // To print simple path
+        const char *seq_name = chrom->seq_name;
+        const char *seq = chrom->seq;
+        int cores_size = chrom->cores_size;
+        
+        {
+            const struct simple_core *temp_core = &(chrom->cores[0]);
+            uint64_t start = temp_core->start;
+            int seq_len = (int)(temp_core->end - start);
+            print_seq(temp_core->id, seq+start, seq_len, seq_name, start, 0, is_rgfa, out_segment);
+        }
+        
+        uint64_t prev_core_id = chrom->cores[0].id;
+
+        for (int j=1; j<cores_size; j++) {
+            const struct simple_core *temp_core = &(chrom->cores[j]);
+            uint64_t temp_id = temp_core->id;
+            uint64_t temp_start = temp_core->start;
+            int seq_len = (int)(temp_core->end - temp_start);
+
+            print_seq(temp_core->id, seq+temp_start, seq_len, seq_name, temp_start, 0, is_rgfa, out_segment);
+            print_link(prev_core_id, '+', temp_core->id, '+', 0, out_link);
+            prev_core_id = temp_id;
+        }
+    }
+}
+
+/**
+ * Set ID for the segment. Process each variation graph data (vgd) and if there is a
+ * outgoing deletion from the segment's end, then assign the pre-defined ID. If not,
+ * assign global/thread specific incremental ID.
+ */
 uint64_t set_id(struct vg_data *vgd, uint64_t segment_end, uint64_t *t_args_id) {
     for (int i=0; i<vgd->size; i++) {
         if (vgd->data[i].start == segment_end && vgd->data[i].type == OUT_DEL) { // if DEL start
@@ -10,6 +49,12 @@ uint64_t set_id(struct vg_data *vgd, uint64_t segment_end, uint64_t *t_args_id) 
     return (*t_args_id)-1;
 }
 
+/**
+ * Locate split and merge segments' IDs of the given variation. If variation starts 
+ * at the beginning, then assign the split_id the previous_segment. Note that variation
+ * should have start position so split_id can be assigned. Also, it should have end
+ * position.
+ */
 void locate_ids(struct vg_data *vgd, struct simple_core *segments, int segment_count, uint64_t start, uint64_t end, uint64_t *split_id, uint64_t *merge_id) {
     int i = 0;
     *split_id = vgd->prev_id;
@@ -33,6 +78,12 @@ void locate_ids(struct vg_data *vgd, struct simple_core *segments, int segment_c
     }
 }
 
+/**
+ * This function adds the variations that are note part of the current vdg (i.e., outgoing).
+ * Note that data is stored in sorted order, based on the positions. The element that is
+ * inserted is stored as 64-bit integer, (32-bit ID + 32-bit Pos), which the ID is assigned 
+ * by main thread.
+ */
 int add_elem_2_rem_arr(uint64_t **rem_vars, int rem_vars_size, int rem_vars_capacity, uint64_t id, uint64_t loc) {
     if (rem_vars_size == rem_vars_capacity) {
         uint64_t *temp = (uint64_t *)realloc(*rem_vars, 2 * rem_vars_capacity * sizeof(uint64_t));
@@ -54,6 +105,11 @@ int add_elem_2_rem_arr(uint64_t **rem_vars, int rem_vars_size, int rem_vars_capa
     return rem_vars_size;
 }
 
+/**
+ * This function facilitates to move the vgd data to the next segment. Note that it 
+ * does not make allocation for the vgd->data variations array. It only modifies metadata.
+ * Hence, you need to make sure that the previous segment should nothing to process (split).
+ */
 void move_2_next_core(struct vg_data *vgd, int chr_idx, int core_idx, uint64_t curr_id) {
     vgd->chr_idx = chr_idx;
     vgd->core_idx = core_idx;
@@ -62,6 +118,10 @@ void move_2_next_core(struct vg_data *vgd, int chr_idx, int core_idx, uint64_t c
     vgd->curr_id = curr_id;
 }
 
+/**
+ * This function creates new vgd data. It initializes a new array to store variatons.
+ * All other necessary information is also initialized.
+ */
 struct vg_data *malloc_vg_data(int chr_idx, int core_idx, uint64_t curr_id, uint64_t prev_id) {
     struct vg_data *vgd = (struct vg_data*)malloc(sizeof(struct vg_data));
     vgd->chr_idx = chr_idx;
@@ -74,6 +134,10 @@ struct vg_data *malloc_vg_data(int chr_idx, int core_idx, uint64_t curr_id, uint
     return vgd;
 }
 
+/**
+ * This function checks whether there is any space left to insert variation (element)
+ * into vgd->data array. If not, it increases the array by reallocating data.
+ */
 int check_vg_data(struct vg_data *vgd) {
     if (vgd->size == vgd->capacity) {
         vgd->capacity *= 2;
@@ -84,13 +148,18 @@ int check_vg_data(struct vg_data *vgd) {
     return 1;
 }
 
+/**
+ * As for newly created data, this function add elements to vgd->data array.
+ * This function basically assigns incoming variations to the segment if there is any.
+ * So, threads can make necesarry linking of incoming variatons (such as del, alt...)
+ */
 int add_elem_2_vgd(struct vg_data *vgd, uint64_t *arr, int size, uint64_t start, uint64_t end) {
     int i = 0;
     // If elements in rem_arr lies in this core, add them to vg_data
     while (i < size && (uint32_t)(arr[i]) < start) {
         // this only happens when the end point of variation is in masked region (N)
         // if masked regions are represented in segments, no problem will occur
-        fprintf(stderr, "[ERROR] Left element on the way. var end: %u, core start: %lu\n", (uint32_t)(arr[i]), start);
+        fprintf(stderr, "[ERROR] Left element on the way. chrom: %d, var end: %u, core start: %lu\n", vgd->chr_idx, (uint32_t)(arr[i]), start);
         i++;
     }
     while (i < size && (uint32_t)(arr[i]) < end) {
@@ -99,7 +168,7 @@ int add_elem_2_vgd(struct vg_data *vgd, uint64_t *arr, int size, uint64_t start,
         vgd->size++;
         i++;
     }
-
+    // remove first elements by shifting the data to the left
     if (i && i < size) {
         memmove(arr, arr+i, (size-i) * sizeof(uint64_t));
     }
@@ -346,6 +415,8 @@ void vg_read_vcf(struct opt_arg *args, struct ref_seq *seqs) {
         }
     }
 
+    fprintf(out_segment, "H\tVN:Z:1.1\n");
+
     FILE *out_log;
     if (args->prefix == NULL) {
         char out_err_filename[10];
@@ -434,11 +505,9 @@ void vg_read_vcf(struct opt_arg *args, struct ref_seq *seqs) {
     int rem_vars_size = 0;
     uint64_t *rem_vars = (uint64_t *)malloc(rem_vars_capacity * sizeof(uint64_t)); // id+end
 
-    int chr_idx = 0;
-    int core_idx = 0;
+    int chr_idx = 0, core_idx = 0, chrom_index = 0;
     struct chr *curr_chr = &(seqs->chrs[chr_idx]);
     struct vg_data *vgd = malloc_vg_data(chr_idx, core_idx, seqs->chrs[chr_idx].cores[core_idx].id, 0);
-    int chrom_index = 0;
     curr_chr->ids = (uint64_t **)malloc(curr_chr->cores_size * sizeof(uint64_t *));
 
     while (fgets(line, current_size, file) != NULL) {
@@ -471,19 +540,18 @@ void vg_read_vcf(struct opt_arg *args, struct ref_seq *seqs) {
 
         char *saveptr;
         chrom = strtok_r(line, "\t", &saveptr); // get chromosome name
-        if (strcmp(chrom, t_args->seqs->chrs[chrom_index].seq_name) != 0) {
-            if (strcmp(chrom, t_args->seqs->chrs[chrom_index+1].seq_name) == 0) {
+        if (strcmp(chrom, seqs->chrs[chrom_index].seq_name) != 0) {
+            if (chrom_index+1 < seqs->size && strcmp(chrom, seqs->chrs[chrom_index+1].seq_name) == 0) {
                 chrom_index++;
             } else {
                 chrom_index = -1;
-                for (int i=chr_idx; i<t_args->seqs->size; i++) {
-                    if (strcmp(chrom, t_args->seqs->chrs[i].seq_name) == 0) { 
+                for (int i=chr_idx; i<seqs->size; i++) {
+                    if (strcmp(chrom, seqs->chrs[i].seq_name) == 0) { 
                         chrom_index = i; 
                         break; 
                     }
                 }
                 if (chrom_index == -1) {
-                    t_args->invalid_line_count += 1;
                     continue;
                 }
             }
@@ -516,7 +584,7 @@ void vg_read_vcf(struct opt_arg *args, struct ref_seq *seqs) {
                     if (core_idx) { // in case it is first lcp core in chromosome
                         print_link(curr_chr->cores[core_idx-1].id, '+', core_id, '+', 0, out_link);
                     }
-                    t_args->seqs->chrs[chr_idx].ids[core_idx] = NULL;
+                    seqs->chrs[chr_idx].ids[core_idx] = NULL;
                     core_idx++;
                     if (core_idx < curr_chr->cores_size) {
                         move_2_next_core(vgd, chr_idx, core_idx, curr_chr->cores[core_idx].id);
@@ -548,7 +616,7 @@ void vg_read_vcf(struct opt_arg *args, struct ref_seq *seqs) {
                     if (core_idx) {
                         print_link(curr_chr->cores[core_idx-1].id, '+', core_id, '+', 0, out_link);
                     }
-                    t_args->seqs->chrs[chr_idx].ids[core_idx] = NULL;
+                    seqs->chrs[chr_idx].ids[core_idx] = NULL;
                     core_idx++;
                     if (core_idx < curr_chr->cores_size) {
                         move_2_next_core(vgd, chr_idx, core_idx, curr_chr->cores[core_idx].id);
@@ -559,41 +627,31 @@ void vg_read_vcf(struct opt_arg *args, struct ref_seq *seqs) {
             chr_idx++;
             // if there is a chromosomal jump (e.g., from chr1 to chr4), print chr2 and chr3
             while (chr_idx < chrom_index) {
-                curr_chr = &(seqs->chrs[chr_idx]);
-                if (curr_chr->cores_size) {
-                    t_args->seqs->chrs[chr_idx].ids = NULL;
-                    const char *seq_name = curr_chr->seq_name;
-                    const char *seq = curr_chr->seq;
-                    
-                    {
-                        const struct simple_core *temp_core = &(curr_chr->cores[0]);
-                        uint64_t start = temp_core->start;
-                        print_seq(temp_core->id, seq+start, (int)(temp_core->end - start), seq_name, start, 0, t_args->is_rgfa, out_segment);
-                    }
-                    
-                    uint64_t prev_core_id = curr_chr->cores[0].id;
-
-                    for (int j=1; j<curr_chr->cores_size; j++) {
-                        const struct simple_core *temp_core = &(curr_chr->cores[j]);
-                        uint64_t temp_id = temp_core->id;
-                        uint64_t temp_start = temp_core->start;
-                        int seq_len = (int)(temp_core->end - temp_start);
-        
-                        print_seq(temp_core->id, seq+temp_start, seq_len, seq_name, temp_start, 0, t_args->is_rgfa, out_segment);
-                        print_link(prev_core_id, '+', temp_core->id, '+', 0, out_link);
-                        prev_core_id = temp_id;
-                    }
-                }
+                vg_print_seq(&(seqs->chrs[chr_idx]), args->is_rgfa, out_segment, out_link);
                 chr_idx++;
             }
             chr_idx = chrom_index;
             core_idx = 0;
             curr_chr = &(seqs->chrs[chr_idx]);
             curr_chr->ids = (uint64_t **)malloc(curr_chr->cores_size * sizeof(uint64_t *));
+            // move vgd data to correct position
+            while (core_idx < curr_chr->cores_size && curr_chr->cores[core_idx].end <= offset) {
+                const struct simple_core *curr_core = &(curr_chr->cores[core_idx]);
+                uint64_t core_id = curr_core->id;
+                uint64_t core_start = curr_core->start;
+                uint64_t core_end = curr_core->end;
+                print_seq(core_id, curr_chr->seq+core_start, core_end-core_start, curr_chr->seq_name, core_start, 0, args->is_rgfa, out_segment);
+                if (core_idx) { // in case it is first lcp core in chromosome
+                    print_link(curr_chr->cores[core_idx-1].id, '+', core_id, '+', 0, out_link);
+                }
+                seqs->chrs[chr_idx].ids[core_idx] = NULL;
+                core_idx++;
+            }
             // reset vgd data
-            vgd->core_idx = 0;
-            vgd->prev_id = 0;
-            vgd->curr_id = curr_chr->cores[0].id;
+            vgd->chr_idx = chrom_index;
+            vgd->core_idx = core_idx;
+            vgd->prev_id = core_idx ? curr_chr->cores[core_idx-1].id : 0;
+            vgd->curr_id = curr_chr->cores[core_idx].id;
         }
         
         // Process new variation now
@@ -723,43 +781,13 @@ void vg_read_vcf(struct opt_arg *args, struct ref_seq *seqs) {
             if (core_idx) { // in case it is first lcp core in chromosome
                 print_link(curr_chr->cores[core_idx-1].id, '+', core_id, '+', 0, out_link);
             }
-            t_args->seqs->chrs[chr_idx].ids[core_idx] = NULL;
+            seqs->chrs[chr_idx].ids[core_idx] = NULL;
             core_idx++;
             if (core_idx < curr_chr->cores_size) {
                 move_2_next_core(vgd, chr_idx, core_idx, curr_chr->cores[core_idx].id);
                 rem_vars_size = add_elem_2_vgd(vgd, rem_vars, rem_vars_size, curr_chr->cores[core_idx].start, curr_chr->cores[core_idx].end);
             }
         }
-    }
-    chr_idx++;
-    // print remaining chromosomes if any
-    while (chr_idx < seqs->size) {
-        curr_chr = &(seqs->chrs[chr_idx]);
-        if (curr_chr->cores_size) {
-            const char *seq_name = curr_chr->seq_name;
-            const char *seq = curr_chr->seq;
-            
-            {
-                const struct simple_core *temp_core = &(curr_chr->cores[0]);
-                uint64_t start = temp_core->start;
-                print_seq(temp_core->id, seq+start, (int)(temp_core->end - start), seq_name, start, 0, t_args->is_rgfa, out_segment);
-            }
-            
-            uint64_t prev_core_id = curr_chr->cores[0].id;
-
-            for (int j=1; j<curr_chr->cores_size; j++) {
-                const struct simple_core *temp_core = &(curr_chr->cores[j]);
-                uint64_t temp_id = temp_core->id;
-                uint64_t temp_start = temp_core->start;
-                int seq_len = (int)(temp_core->end - temp_start);
-
-                print_seq(temp_core->id, seq+temp_start, seq_len, seq_name, temp_start, 0, t_args->is_rgfa, out_segment);
-                print_link(prev_core_id, '+', temp_core->id, '+', 0, out_link);
-                prev_core_id = temp_id;
-            }
-        }
-        t_args->seqs->chrs[chr_idx].ids = NULL;
-        chr_idx++;
     }
     
     if (vgd->size) {
@@ -769,6 +797,12 @@ void vg_read_vcf(struct opt_arg *args, struct ref_seq *seqs) {
         free(vgd);
     }
 
+    chr_idx++;
+    // print remaining chromosomes if any
+    while (chr_idx < seqs->size) {
+        vg_print_seq(&(seqs->chrs[chr_idx]), args->is_rgfa, out_segment, out_link);
+        chr_idx++;
+    }
     fclose(file);
 
     pthread_mutex_lock(&queue_mutex);

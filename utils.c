@@ -175,42 +175,42 @@ void refine_seq(struct lps *str, int no_overlap) {
     }
 }
 
-void print_path(struct ref_seq *seqs, FILE *out) {
+void print_path(const struct ref_seq *seqs, FILE *out) {
     for (int i=0; i<seqs->size; i++) {
         if (seqs->chrs[i].cores_size) {
+            const struct chr *chrom = seqs->chrs + i;
 
             // print Path (P)
-            fprintf(out, "P\t%s\t", seqs->chrs[i].seq_name);
+            fprintf(out, "P\t%s\t", chrom->seq_name);
 
             // print first core
-            if (seqs->chrs[i].ids != NULL && seqs->chrs[i].ids[0] != NULL) { // if first one is not NULL
-                fprintf(out, "%lu+", seqs->chrs[i].ids[0][0]);
+            if (chrom->ids != NULL && chrom->ids[0] != NULL) { // if first one is not NULL
+                fprintf(out, "%lu+", chrom->ids[0][0]);
                 int index = 1;
-                while (seqs->chrs[i].ids[0][index]) {
-                    fprintf(out, ",%lu+", seqs->chrs[i].ids[0][index++]);
+                while (chrom->ids[0][index]) {
+                    fprintf(out, ",%lu+", chrom->ids[0][index++]);
                 }
-                fprintf(out, ",%lu+", seqs->chrs[i].cores[0].id);
+                fprintf(out, ",%lu+", chrom->cores[0].id);
             } else {
-                fprintf(out, "%lu+", seqs->chrs[i].cores[0].id);
+                fprintf(out, "%lu+", chrom->cores[0].id);
             }
             
             // print rest
-            if (seqs->chrs[i].ids != NULL) {
-                for (int j=1; j<seqs->chrs[i].cores_size; j++) {
-                    if (seqs->chrs[i].ids[j] != NULL) {
+            if (chrom->ids != NULL) {
+                for (int j=1; j<chrom->cores_size; j++) {
+                    if (chrom->ids[j] != NULL) {
                         int index = 0;
-                        while (seqs->chrs[i].ids[j][index]) {
-                            fprintf(out, ",%lu+", seqs->chrs[i].ids[j][index++]);
+                        while (chrom->ids[j][index]) {
+                            fprintf(out, ",%lu+", chrom->ids[j][index++]);
                         }
                     }
-                    fprintf(out, ",%lu+", seqs->chrs[i].cores[j].id);
+                    fprintf(out, ",%lu+", chrom->cores[j].id);
                 }
             } else {
-                for (int j=1; j<seqs->chrs[i].cores_size; j++) {
-                    fprintf(out, ",%lu+", seqs->chrs[i].cores[j].id);
+                for (int j=1; j<chrom->cores_size; j++) {
+                    fprintf(out, ",%lu+", chrom->cores[j].id);
                 }
             }
-
 
             // print cigar
             fprintf(out, "\t*\n");

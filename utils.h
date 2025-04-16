@@ -180,6 +180,6 @@ void refine_seq(struct lps *str, int no_overlap);
  * @param ref_seq   The reference sequences
  * @param out       Output file to write path.
  */
-void print_path(struct ref_seq *seqs, FILE *out);
+void print_path(const struct ref_seq *seqs, FILE *out);
 
 #endif

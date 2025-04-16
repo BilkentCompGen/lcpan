@@ -8,3 +8,4 @@ lcpan
 bin/*
 misc_utils/vgx-data-prep.sh
 misc_utils/vgx-profiling-pipeline.md
+results

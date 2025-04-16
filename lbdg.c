@@ -48,7 +48,7 @@ void lbdg_print_ref_seq(struct ref_seq *seqs, FILE *out) {
                     int seq_len = (int)(curr_end-curr_start);
 
                     fprintf(out, "S\t%lu\t", curr_core->id);
-                    fwrite(seq+curr_start, 1, seq_len, out); 
+                    fwrite(seq+curr_start, 1, seq_len, out);
                     fprintf(out, "\n");
 
                     bit_arr[index / 64] |= bit;
@@ -71,7 +71,7 @@ void lbdg_print_ref_seq(struct ref_seq *seqs, FILE *out) {
                     int seq_len = (int)(curr_end-curr_start);
 
                     fprintf(out, "S\t%lu\t", curr_core->id);
-                    fwrite(seq+curr_start, 1, seq_len, out); 
+                    fwrite(seq+curr_start, 1, seq_len, out);
                     fprintf(out, "\n");
 
                     bit_arr[index / 64] |= bit;

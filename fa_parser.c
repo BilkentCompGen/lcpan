@@ -94,11 +94,15 @@ void vgx_process_chrom(char *sequence, uint64_t seq_size, int lcp_level, int ski
     uint64_t index = 0;
     uint64_t last_core_index = 0;
 
+    int valid_chars[256] = {0};
+    valid_chars['A'] = valid_chars['C'] = valid_chars['T'] = valid_chars['G'] = 1;
+    valid_chars['a'] = valid_chars['c'] = valid_chars['t'] = valid_chars['g'] = 1;
+
     while (index < seq_size) {
         {
             uint64_t temp_index = index;
             
-            while (index < seq_size && sequence[index] == 'N') {
+            while (index < seq_size && !valid_chars[(unsigned char)sequence[index]]) {
                 index++;
             }
 
@@ -122,9 +126,12 @@ void vgx_process_chrom(char *sequence, uint64_t seq_size, int lcp_level, int ski
             }
         }
 
+        if (index == seq_size)
+            break;
+
         uint64_t end = index;
         
-        while (end < seq_size && sequence[end] != 'N') {
+        while (end < seq_size && valid_chars[(unsigned char)sequence[end]]) {
             end++;
         }
 
@@ -156,13 +163,28 @@ void vgx_process_chrom(char *sequence, uint64_t seq_size, int lcp_level, int ski
                 id++;
                 last_core_index++;                
             }
-            
-            chrom->cores_size = last_core_index;
+        } else {
+            uint64_t i = index;
+            while (i+estimated_core_length < end) {
+                chrom->cores[last_core_index].id = id;
+                chrom->cores[last_core_index].start = i;
+                chrom->cores[last_core_index].end = i+estimated_core_length;
+                id++;
+                last_core_index++;
+                i += estimated_core_length;
+            }
+            chrom->cores[last_core_index].id = id;
+            chrom->cores[last_core_index].start = i;
+            chrom->cores[last_core_index].end = end;
+            id++;
+            last_core_index++;
         }
 
         index = end;
         free_lps(&str); 
     }
+
+    chrom->cores_size = last_core_index;
 
     if (chrom->cores_size) {
         struct simple_core *temp = (struct simple_core*)realloc(chrom->cores, chrom->cores_size * sizeof(struct simple_core));

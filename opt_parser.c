@@ -180,6 +180,7 @@ void parse_opts(int argc, char* argv[], struct opt_arg *args) {
             args->verbose = 1;
             break;
         default:
+            fprintf(stderr, "[ERROR] Invalid option %c\n", opt);
             printOptions();
             exit(EXIT_FAILURE);
         }

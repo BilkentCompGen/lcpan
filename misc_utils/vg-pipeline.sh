@@ -50,7 +50,7 @@
 ##              ├── hg002.chr22.95.fa
 ##              └── hg002.chr22.hifi.fa
 ##
-## NOTE: samtools and bcftools are required (system wide installed) for variant calling
+## NOTE: samtools is required (system wide installed) for gaf to sam converion
 
 ### Thread scaling analyses based on non-overlapping gfa graph
 
@@ -141,7 +141,8 @@ done < ../hg38.fa.fai
 /bin/time -v bash -c "i=0; while read -r region; do output_file='chunk.'\"\${i}\"'.vg'; vg construct -r ../hg38.fa -v ../pggb.vcf.gz -f -R \"\$region\" > \"\$output_file\"; ((i++)); done < hg38.chunks.txt" > hg38.pggb.vg.out 2>&1
 /bin/time -v vg combine -p chunk.*.vg > hg38.pggb.vg 2>> hg38.pggb.vg.out
 /bin/time -v vg convert -f hg38.pggb.vg > hg38.pggb.vg.gfa 2>> hg38.pggb.vg.out
-rm chunk.*.vg;
+rm chunk.*.vg
+rm hg38.pggb.vg
 /bin/time -v ../akhal stats hg38.pggb.vg.gfa >> hg38.pggb.vg.out 2>&1
 stat --format="%s %n" *.gfa 2>/dev/null | tee sizes.txt > /dev/null && rm -f *.gfa
 
@@ -166,39 +167,23 @@ echo "LCPan chr22 graph construction"
 
 #### Align HiFi reads of (hg002.chr22)
 echo "HiFi"
-/bin/time -v ~/tools/GraphAligner/bin/GraphAligner -g hg38.chr22.pggb.lcpan.gfa -f ../reads/hg002.chr22.hifi.fa -a hg002.chr22.lcpan.hifi.gaf -x vg -t 32 > hg002.chr22.lcpan.hifi.out 2>&1
-/bin/time -v ~/tools/GraphAligner/bin/GraphAligner -g hg38.chr22.pggb.vg.gfa -f ../reads/hg002.chr22.hifi.fa -a hg002.chr22.vg.hifi.gaf -x vg -t 32 > hg002.chr22.vg.hifi.out 2>&1
-
-## LCPan SNP and indel calling
-echo "LCPan Variant Calling"
-/bin/time -v ../akhal gaf2sam hg38.chr22.pggb.lcpan.gfa hg002.chr22.lcpan.hifi.gaf ../reads/hg002.chr22.hifi.fa hg002.chr22.lcpan.hifi.sam >> hg002.chr22.lcpan.hifi.out 2>&1
-/bin/time -v ../akhal sampoke ../hg38.chr22.fa hg002.chr22.lcpan.hifi.sam hg002.chr22.lcpan.hifi.qual.sam >> hg002.chr22.lcpan.hifi.out 2>&1
-rm hg002.chr22.lcpan.hifi.sam
-samtools view -bS hg002.chr22.lcpan.hifi.qual.sam | samtools sort -o hg002.chr22.lcpan.hifi.qual.bam && samtools index hg002.chr22.lcpan.hifi.qual.bam >> hg002.chr22.lcpan.hifi.out 2>&1
-bcftools mpileup -f ../hg38.chr22.fa hg002.chr22.lcpan.hifi.qual.bam | bcftools call -mv -Oz -o hg002.chr22.lcpan.hifi.vcf.gz >> hg002.chr22.lcpan.hifi.out 2>&1
-
-## VG SNP and indel calling
-echo "VG Variant Calling"
-/bin/time -v ../akhal gaf2sam hg38.chr22.pggb.vg.gfa hg002.chr22.vg.hifi.gaf ../reads/hg002.chr22.hifi.fa hg002.chr22.vg.hifi.sam >> hg002.chr22.vg.hifi.out 2>&1
-/bin/time -v ../akhal sampoke ../hg38.chr22.fa hg002.chr22.vg.hifi.sam hg002.chr22.vg.hifi.qual.sam >> hg002.chr22.vg.hifi.out 2>&1
-rm hg002.chr22.vg.hifi.sam
-samtools view -bS hg002.chr22.vg.hifi.qual.sam | samtools sort -o hg002.chr22.vg.hifi.qual.bam && samtools index hg002.chr22.vg.hifi.qual.bam >> hg002.chr22.vg.hifi.out 2>&1
-bcftools mpileup -f ../hg38.chr22.fa hg002.chr22.vg.hifi.qual.bam | bcftools call -mv -Oz -o hg002.chr22.vg.hifi.vcf.gz >> hg002.chr22.vg.hifi.out 2>&1
+/bin/time -v ~/tools/GraphAligner/bin/GraphAligner -g hg38.chr22.pggb.lcpan.gfa -f ../reads/hg002.chr22.hifi.fa -a hg002.chr22.lcpan.hifi.gaf -x vg -t 64 > hg002.chr22.lcpan.hifi.out 2>&1
+/bin/time -v ~/tools/GraphAligner/bin/GraphAligner -g hg38.chr22.pggb.vg.gfa -f ../reads/hg002.chr22.hifi.fa -a hg002.chr22.vg.hifi.gaf -x vg -t 64 > hg002.chr22.vg.hifi.out 2>&1
 
 #### Align PacBio-Sim (85) reads of (hg002.chr22)
 echo "PacBio-sim acc:85"
-/bin/time -v ~/tools/GraphAligner/bin/GraphAligner -g hg38.chr22.pggb.lcpan.gfa -f ../reads/hg002.chr22.85.fa -a hg002.chr22.lcpan.85.gaf -x vg -t 32 > hg002.chr22.lcpan.85.out 2>&1
-/bin/time -v ~/tools/GraphAligner/bin/GraphAligner -g hg38.chr22.pggb.vg.gfa -f ../reads/hg002.chr22.85.fa -a hg002.chr22.vg.85.gaf -x vg -t 32 > hg002.chr22.vg.85.out 2>&1
+/bin/time -v ~/tools/GraphAligner/bin/GraphAligner -g hg38.chr22.pggb.lcpan.gfa -f ../reads/hg002.chr22.85.fa -a hg002.chr22.lcpan.85.gaf -x vg -t 64 > hg002.chr22.lcpan.85.out 2>&1
+/bin/time -v ~/tools/GraphAligner/bin/GraphAligner -g hg38.chr22.pggb.vg.gfa -f ../reads/hg002.chr22.85.fa -a hg002.chr22.vg.85.gaf -x vg -t 64 > hg002.chr22.vg.85.out 2>&1
 
 #### Align PacBio-Sim (90) reads of (hg002.chr22)
 echo "PacBio-sim acc:90"
-/bin/time -v ~/tools/GraphAligner/bin/GraphAligner -g hg38.chr22.pggb.lcpan.gfa -f ../reads/hg002.chr22.90.fa -a hg002.chr22.lcpan.90.gaf -x vg -t 32 > hg002.chr22.lcpan.90.out 2>&1
-/bin/time -v ~/tools/GraphAligner/bin/GraphAligner -g hg38.chr22.pggb.vg.gfa -f ../reads/hg002.chr22.90.fa -a hg002.chr22.vg.90.gaf -x vg -t 32 > hg002.chr22.vg.90.out 2>&1
+/bin/time -v ~/tools/GraphAligner/bin/GraphAligner -g hg38.chr22.pggb.lcpan.gfa -f ../reads/hg002.chr22.90.fa -a hg002.chr22.lcpan.90.gaf -x vg -t 64 > hg002.chr22.lcpan.90.out 2>&1
+/bin/time -v ~/tools/GraphAligner/bin/GraphAligner -g hg38.chr22.pggb.vg.gfa -f ../reads/hg002.chr22.90.fa -a hg002.chr22.vg.90.gaf -x vg -t 64 > hg002.chr22.vg.90.out 2>&1
 
 #### Align PacBio-Sim (95) reads of (hg002.chr22)
 echo "PacBio-sim acc:95"
-/bin/time -v ~/tools/GraphAligner/bin/GraphAligner -g hg38.chr22.pggb.lcpan.gfa -f ../reads/hg002.chr22.95.fa -a hg002.chr22.lcpan.95.gaf -x vg -t 32 > hg002.chr22.lcpan.95.out 2>&1
-/bin/time -v ~/tools/GraphAligner/bin/GraphAligner -g hg38.chr22.pggb.vg.gfa -f ../reads/hg002.chr22.95.fa -a hg002.chr22.vg.95.gaf -x vg -t 32 > hg002.chr22.vg.95.out 2>&1
+/bin/time -v ~/tools/GraphAligner/bin/GraphAligner -g hg38.chr22.pggb.lcpan.gfa -f ../reads/hg002.chr22.95.fa -a hg002.chr22.lcpan.95.gaf -x vg -t 64 > hg002.chr22.lcpan.95.out 2>&1
+/bin/time -v ~/tools/GraphAligner/bin/GraphAligner -g hg38.chr22.pggb.vg.gfa -f ../reads/hg002.chr22.95.fa -a hg002.chr22.vg.95.gaf -x vg -t 64 > hg002.chr22.vg.95.out 2>&1
 
 cd ..
 

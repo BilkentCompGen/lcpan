@@ -24,3 +24,4 @@
 void vgx_read_vcf(struct opt_arg *args, struct ref_seq *seqs);
 
 #endif
+

@@ -30,7 +30,7 @@ int summarize(struct opt_arg *args) {
     return 1;
 }
 
-void printOptions() {
+void printOptions(void) {
     fprintf(stderr, "[Options]:\n");
     fprintf(stderr, "\t--ref | -r          Reference FASTA File. (.fai should be present)\n");
     fprintf(stderr, "\t--vcf | -v          VCF File.\n");
@@ -44,7 +44,7 @@ void printOptions() {
     fprintf(stderr, "\t--verbose  Verbose  [Default: false]\n");
 }
 
-void printUsage() {
+void printUsage(void) {
     fprintf(stderr, "Usage: ./lcpan [PROGRAM] [OPTIONS]\n\n");
     fprintf(stderr, "[PROGRAM]: \n");
     fprintf(stderr, "\t-vg:         Uses a variation graph-based approach.\n");

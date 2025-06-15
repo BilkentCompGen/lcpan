@@ -499,8 +499,6 @@ void vg_read_vcf(struct opt_arg *args, struct ref_seq *seqs) {
         exit(EXIT_FAILURE);
     }
 
-    int line_count = 0;
-
     int rem_vars_capacity = 256;
     int rem_vars_size = 0;
     uint64_t *rem_vars = (uint64_t *)malloc(rem_vars_capacity * sizeof(uint64_t)); // id+end
@@ -532,7 +530,6 @@ void vg_read_vcf(struct opt_arg *args, struct ref_seq *seqs) {
         // validate `line`
         if (skip_line || len < 2 || line[0] == '#') continue;
         if (line[len - 1] == '\n') { line[len - 1] = '\0'; len--; }
-        line_count++;
 
         // parse the `line`
         char *chrom, *index, *id, *ref, *alt;
@@ -857,3 +854,4 @@ void vg_read_vcf(struct opt_arg *args, struct ref_seq *seqs) {
     fclose(out_segment);
     fclose(out_link);
 }
+

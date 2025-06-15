@@ -7,7 +7,7 @@ OBJS := $(SRCS:.c=.o)
 CURRENT_DIR := $(shell pwd)
 
 GXX ?= gcc
-CXXFLAGS = -O3 -Wall -Wextra -Wpedantic
+CXXFLAGS = -O3 -Wall -Wextra -Wpedantic -march=native
 
 # object files that need lcptools
 LCPTOOLS_CXXFLAGS := -I$(CURRENT_DIR)/lcptools/include

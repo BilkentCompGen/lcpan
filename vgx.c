@@ -415,3 +415,4 @@ void vgx_read_vcf(struct opt_arg *args, struct ref_seq *seqs) {
 
     printf("[INFO] Ended processing %d lines. \n", line_count);
 }
+

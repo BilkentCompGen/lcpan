@@ -6,7 +6,7 @@ OBJS := $(SRCS:.c=.o)
 # directories
 CURRENT_DIR := $(shell pwd)
 
-GXX := gcc
+GXX ?= gcc
 CXXFLAGS = -O3 -Wall -Wextra -Wpedantic
 
 # object files that need lcptools

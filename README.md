@@ -39,7 +39,6 @@ Run the tool using the following command-line options:
 Program:
 - `-vg`: Constructs a variation graph using a reference genome and VCF. In this mode, the initial partitioning is done with LCP, and each segment is further divided into sub-segments if variations are present.
 - `-vgx`: Constructs an expanded variation graph using a reference genome and VCF. In this mode, each variation is represented by an alternative arc, which connects the latest non-overlapping LCP core to the first LCP core afterward.
-- `-lbdg`: Constructs a variation graph using an LCP-spaced de Bruijn graph. This mode generates a compact graph representation based on de Bruijn graph principles.
 
 Options:
 
@@ -62,17 +61,11 @@ The `lcpan` tool runs in parallel, hence, it generates multiple output file. Not
 ### Example 1
 
 ```sh
-./lcpan -vgx -r genome.fasta -v variations.vcf -p output -l 4
+./lcpan -vg -r genome.fasta -v variations.vcf -p output -l 4
 bash lcpan-merge.sh output.log
 ```
 
-This command constructs a variation graph for the input FASTA and VCF files, applying LCP parsing at level 4 using single thread, and saves the result to `output.rgfa` and `output.rgfa.0` files. Then, you need to append content of `output.rgfa.0` file into `output.rgfa` file (which will be done by `lcpan-merge.sh` script).
-
-### Example 2
-
-```sh
-./lcpan -lbdg -r genome.fasta -o output.rgfa
-```
+This command constructs a variation graph for the input FASTA and VCF files, applying LCP parsing at level 4 using single thread, and saves the result to various files. Then, you need to merge the files (which will be done by `lcpan-merge.sh` script).
 
 ## Licence
 

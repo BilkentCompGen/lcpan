@@ -55,15 +55,15 @@ int main(int argc, char* argv[]) {
         (void)(args.verbose && printf("[INFO] Total number of failed variations: %d\n", args.failed_var_count));
         fclose(gfa_out);
         break;
-    case LBDG:
-        gfa_out = fopen(args.gfa_path, "w");
-        if (gfa_out == NULL) {
-            fprintf(stderr, "Couldn't open output file %s\n", args.gfa_path);
-            exit(EXIT_FAILURE);
-        }
-        lbdg_print_ref_seq(&seqs, gfa_out);
-        fclose(gfa_out);
-        break;
+    // case LBDG:
+    //     gfa_out = fopen(args.gfa_path, "w");
+    //     if (gfa_out == NULL) {
+    //         fprintf(stderr, "Couldn't open output file %s\n", args.gfa_path);
+    //         exit(EXIT_FAILURE);
+    //     }
+    //     lbdg_print_ref_seq(&seqs, gfa_out);
+    //     fclose(gfa_out);
+    //     break;
     default:
         fprintf(stderr, "Invalid program mode provided.\n");
     }

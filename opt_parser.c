@@ -30,7 +30,7 @@ int summarize(struct opt_arg *args) {
     return 1;
 }
 
-void printOptions() {
+void printOptions(void) {
     fprintf(stderr, "[Options]:\n");
     fprintf(stderr, "\t--ref | -r          Reference FASTA File. (.fai should be present)\n");
     fprintf(stderr, "\t--vcf | -v          VCF File.\n");
@@ -44,7 +44,7 @@ void printOptions() {
     fprintf(stderr, "\t--verbose  Verbose  [Default: false]\n");
 }
 
-void printUsage() {
+void printUsage(void) {
     fprintf(stderr, "Usage: ./lcpan [PROGRAM] [OPTIONS]\n\n");
     fprintf(stderr, "[PROGRAM]: \n");
     fprintf(stderr, "\t-vg:         Uses a variation graph-based approach.\n");
@@ -208,7 +208,7 @@ void parse_opts(int argc, char* argv[], struct opt_arg *args) {
         validate_file(args->vcf_path, "vcf");
     }
 
-    char *fai_path = malloc(strlen(args->fasta_path)+5);
+    char *fai_path = (char *) malloc(strlen(args->fasta_path)+5);
     if (fai_path == NULL) {
         fprintf(stderr, "[ERROR] Memory allocation failed\n");
         exit(EXIT_FAILURE);
@@ -226,14 +226,14 @@ void parse_opts(int argc, char* argv[], struct opt_arg *args) {
         }
     } else {
         if (args->is_rgfa) {
-            args->gfa_path = malloc(strlen(args->prefix)+6);
+            args->gfa_path = (char *) malloc(strlen(args->prefix)+6);
             if (!args->gfa_path) {
                 fprintf(stderr, "[ERROR] malloc failed");
                 exit(EXIT_FAILURE);
             }
             snprintf(args->gfa_path, strlen(args->prefix)+6, "%s.rgfa", args->prefix);
         } else {
-            args->gfa_path = malloc(strlen(args->prefix)+5);
+            args->gfa_path = (char *) malloc(strlen(args->prefix)+5);
             if (!args->gfa_path) {
                 fprintf(stderr, "[ERROR] malloc failed");
                 exit(EXIT_FAILURE);

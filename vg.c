@@ -164,7 +164,7 @@ int add_elem_2_vgd(struct vg_data *vgd, uint64_t *arr, int size, uint64_t start,
     }
     while (i < size && (uint32_t)(arr[i]) < end) {
         check_vg_data(vgd); // check if there is a space to add element
-        vgd->data[vgd->size] = (struct vg_data_element){INCOMING, arr[i] >> 32, 0xFFFFFFFFFFFFFFFF, 0xFFFFFFFF & arr[i], NULL, NULL, 0}; // order not matter here
+        vgd->data[vgd->size] = COLITERAL(vg_data_element){INCOMING, arr[i] >> 32, 0xFFFFFFFFFFFFFFFF, 0xFFFFFFFF & arr[i], NULL, NULL, 0}; // order not matter here
         vgd->size++;
         i++;
     }
@@ -302,13 +302,13 @@ void vg_read_vcf_thd(void *args) {
             uint64_t prev_segment_id = vgd->prev_id;
             for (int k=0; k<segment_count-1; k++) {
                 uint64_t segment_id = set_id(vgd, split_points[k+1], &(t_args->core_id_index));
-                segments[k] = (struct simple_core){segment_id, split_points[k], split_points[k+1]};
+                segments[k] = COLITERAL(simple_core){segment_id, split_points[k], split_points[k+1]};
                 print_seq(segment_id, seq+split_points[k], split_points[k+1]-split_points[k], seq_name, split_points[k], 0, t_args->is_rgfa, t_args->out1);
                 print_link(prev_segment_id, '+', segment_id, '+', 0, t_args->out2);
                 prev_segment_id = segment_id;
                 t_args->seqs->chrs[vgd->chr_idx].ids[vgd->core_idx][k] = segment_id;
             }
-            segments[segment_count-1] = (struct simple_core){vgd->curr_id, split_points[segment_count-1], curr_core->end};
+            segments[segment_count-1] = COLITERAL(simple_core){vgd->curr_id, split_points[segment_count-1], curr_core->end};
             print_seq(vgd->curr_id, seq+split_points[segment_count-1], curr_core->end-split_points[segment_count-1], seq_name, split_points[segment_count-1], 0, t_args->is_rgfa, t_args->out1);
             print_link(prev_segment_id, '+', vgd->curr_id, '+', 0, t_args->out2);
             t_args->seqs->chrs[vgd->chr_idx].ids[vgd->core_idx][segment_count-1] = 0;
@@ -316,7 +316,7 @@ void vg_read_vcf_thd(void *args) {
             const char *seq = t_args->seqs->chrs[vgd->chr_idx].seq;
             const char *seq_name = t_args->seqs->chrs[vgd->chr_idx].seq_name;
             const struct simple_core *curr_core = &(t_args->seqs->chrs[vgd->chr_idx].cores[vgd->core_idx]);
-            segments[0] = (struct simple_core){vgd->curr_id, curr_core->start, curr_core->end};
+            segments[0] = COLITERAL(simple_core){vgd->curr_id, curr_core->start, curr_core->end};
             print_seq(vgd->curr_id, seq+curr_core->start, curr_core->end-curr_core->start, seq_name, curr_core->start, 0, t_args->is_rgfa, t_args->out1);
             print_link(vgd->prev_id, '+', vgd->curr_id, '+', 0, t_args->out2);
             t_args->seqs->chrs[vgd->chr_idx].ids[vgd->core_idx] = NULL;
@@ -499,8 +499,6 @@ void vg_read_vcf(struct opt_arg *args, struct ref_seq *seqs) {
         exit(EXIT_FAILURE);
     }
 
-    int line_count = 0;
-
     int rem_vars_capacity = 256;
     int rem_vars_size = 0;
     uint64_t *rem_vars = (uint64_t *)malloc(rem_vars_capacity * sizeof(uint64_t)); // id+end
@@ -532,7 +530,6 @@ void vg_read_vcf(struct opt_arg *args, struct ref_seq *seqs) {
         // validate `line`
         if (skip_line || len < 2 || line[0] == '#') continue;
         if (line[len - 1] == '\n') { line[len - 1] = '\0'; len--; }
-        line_count++;
 
         // parse the `line`
         char *chrom, *index, *id, *ref, *alt;
@@ -665,12 +662,12 @@ void vg_read_vcf(struct opt_arg *args, struct ref_seq *seqs) {
                 uint64_t ref_token_len = strlen(ref_token);
                 if (check_vg_data(vgd)) {
                     if (offset + ref_token_len < curr_chr->cores[core_idx].end) { // DEL inside
-                        vgd->data[vgd->size] = (struct vg_data_element){IN_DEL, 0, offset+1, offset+ref_token_len, NULL, NULL, order};
+                        vgd->data[vgd->size] = COLITERAL(vg_data_element){IN_DEL, 0, offset+1, offset+ref_token_len, NULL, NULL, order};
                         vgd->size++;
                     } else if (offset + 1 < curr_chr->cores[core_idx].end) { // it starts inside
                         rem_vars_size = add_elem_2_rem_arr(&rem_vars, rem_vars_size, rem_vars_capacity, args->core_id_index, offset+ref_token_len);
                         if (rem_vars_size > rem_vars_capacity) rem_vars_capacity *= 2;
-                        vgd->data[vgd->size] = (struct vg_data_element){OUT_DEL, args->core_id_index, offset+1, 0xFFFFFFFFFFFFFFFF, NULL, NULL, order};
+                        vgd->data[vgd->size] = COLITERAL(vg_data_element){OUT_DEL, args->core_id_index, offset+1, 0xFFFFFFFFFFFFFFFF, NULL, NULL, order};
                         vgd->size++;
                         args->core_id_index++;
                     } else {
@@ -691,12 +688,12 @@ void vg_read_vcf(struct opt_arg *args, struct ref_seq *seqs) {
                     if (1 == ref_len && 1 == alt_token_len) { // SNP
                         if (offset + 1 < curr_chr->cores[core_idx].end) {
                             print_seq_vg(args->core_id_index, alt_token, 1, id, order, offset, 1, args->is_rgfa, out_segment);
-                            vgd->data[vgd->size] = (struct vg_data_element){IN_SNP, args->core_id_index, offset, offset+1, NULL, NULL, order}; // id assigned for segment
+                            vgd->data[vgd->size] = COLITERAL(vg_data_element){IN_SNP, args->core_id_index, offset, offset+1, NULL, NULL, order}; // id assigned for segment
                         } else {
                             rem_vars_size = add_elem_2_rem_arr(&rem_vars, rem_vars_size, rem_vars_capacity, args->core_id_index, offset+1);
                             if (rem_vars_size > rem_vars_capacity) rem_vars_capacity *= 2;
                             print_seq_vg(args->core_id_index, alt_token, 1, id, order, offset, 1, args->is_rgfa, out_segment);
-                            vgd->data[vgd->size] = (struct vg_data_element){OUT_SNP, args->core_id_index, offset, 0xFFFFFFFFFFFFFFFF, NULL, NULL, order}; // id assigned for segment
+                            vgd->data[vgd->size] = COLITERAL(vg_data_element){OUT_SNP, args->core_id_index, offset, 0xFFFFFFFFFFFFFFFF, NULL, NULL, order}; // id assigned for segment
                         }
                         vgd->size++;
                         args->core_id_index++;
@@ -705,11 +702,11 @@ void vg_read_vcf(struct opt_arg *args, struct ref_seq *seqs) {
                         if (alt_token_len / 2 < curr_chr->cores[core_idx].end - curr_chr->cores[core_idx].start) { 
                             print_seq_vg(args->core_id_index, alt_token+1, alt_token_len-1, id, order, offset, 1, args->is_rgfa, out_segment);
                             if (offset + 1 < curr_chr->cores[core_idx].end) {
-                                vgd->data[vgd->size] = (struct vg_data_element){IN_INS, args->core_id_index, offset+1, offset+1, NULL, NULL, order}; // id assigned for segment         
+                                vgd->data[vgd->size] = COLITERAL(vg_data_element){IN_INS, args->core_id_index, offset+1, offset+1, NULL, NULL, order}; // id assigned for segment         
                             } else {
                                 rem_vars_size = add_elem_2_rem_arr(&rem_vars, rem_vars_size, rem_vars_capacity, args->core_id_index, offset+1);
                                 if (rem_vars_size > rem_vars_capacity) rem_vars_capacity *= 2;
-                                vgd->data[vgd->size] = (struct vg_data_element){OUT_INS, args->core_id_index, offset+1, 0xFFFFFFFFFFFFFFFF, NULL, NULL, order}; // id assigned for segment
+                                vgd->data[vgd->size] = COLITERAL(vg_data_element){OUT_INS, args->core_id_index, offset+1, 0xFFFFFFFFFFFFFFFF, NULL, NULL, order}; // id assigned for segment
                             }
                             vgd->size++;
                             args->core_id_index++;
@@ -717,11 +714,11 @@ void vg_read_vcf(struct opt_arg *args, struct ref_seq *seqs) {
                             char *alt_token_copy = strdup(alt_token);
                             char *seq_id = strdup(id);
                             if (offset + 1 < curr_chr->cores[core_idx].end) { // if inside of the lcp core
-                                vgd->data[vgd->size] = (struct vg_data_element){IN_INS_SV, args->core_id_index, offset+1, offset+1, alt_token_copy, seq_id, order};
+                                vgd->data[vgd->size] = COLITERAL(vg_data_element){IN_INS_SV, args->core_id_index, offset+1, offset+1, alt_token_copy, seq_id, order};
                             } else { // if in the edge of the end of the lcp core
                                 rem_vars_size = add_elem_2_rem_arr(&rem_vars, rem_vars_size, rem_vars_capacity, args->core_id_index, offset+1);
                                 if (rem_vars_size > rem_vars_capacity) rem_vars_capacity *= 2;
-                                vgd->data[vgd->size] = (struct vg_data_element){OUT_INS_SV, args->core_id_index, offset+1, 0xFFFFFFFFFFFFFFFF, alt_token_copy, seq_id, order};
+                                vgd->data[vgd->size] = COLITERAL(vg_data_element){OUT_INS_SV, args->core_id_index, offset+1, 0xFFFFFFFFFFFFFFFF, alt_token_copy, seq_id, order};
                             }
                             vgd->size++;
                             args->core_id_index++;
@@ -730,11 +727,11 @@ void vg_read_vcf(struct opt_arg *args, struct ref_seq *seqs) {
                         if (alt_token_len / 2 < curr_chr->cores[core_idx].end - curr_chr->cores[core_idx].start) { // alteration, simply print the underling string
                             print_seq_vg(args->core_id_index, alt_token, alt_token_len, id, order, offset, 1, args->is_rgfa, out_segment);
                             if (offset + ref_len < curr_chr->cores[core_idx].end) {
-                                vgd->data[vgd->size] = (struct vg_data_element){IN_ALT, args->core_id_index, offset, offset+ref_len, NULL, NULL, order};
+                                vgd->data[vgd->size] = COLITERAL(vg_data_element){IN_ALT, args->core_id_index, offset, offset+ref_len, NULL, NULL, order};
                             } else {
                                 rem_vars_size = add_elem_2_rem_arr(&rem_vars, rem_vars_size, rem_vars_capacity, args->core_id_index, offset+ref_len);
                                 if (rem_vars_size > rem_vars_capacity) rem_vars_capacity *= 2;
-                                vgd->data[vgd->size] = (struct vg_data_element){OUT_ALT, args->core_id_index, offset, 0xFFFFFFFFFFFFFFFF, NULL, NULL, order};
+                                vgd->data[vgd->size] = COLITERAL(vg_data_element){OUT_ALT, args->core_id_index, offset, 0xFFFFFFFFFFFFFFFF, NULL, NULL, order};
                             }
                             vgd->size++;
                             args->core_id_index++;
@@ -742,11 +739,11 @@ void vg_read_vcf(struct opt_arg *args, struct ref_seq *seqs) {
                             char *alt_token_copy = strdup(alt_token);
                             char *seq_id = strdup(id);
                             if (offset + ref_len < curr_chr->cores[core_idx].end) {
-                                vgd->data[vgd->size] = (struct vg_data_element){IN_ALT_SV, args->core_id_index, offset, offset+ref_len, alt_token_copy, seq_id, order};
+                                vgd->data[vgd->size] = COLITERAL(vg_data_element){IN_ALT_SV, args->core_id_index, offset, offset+ref_len, alt_token_copy, seq_id, order};
                             } else {
                                 rem_vars_size = add_elem_2_rem_arr(&rem_vars, rem_vars_size, rem_vars_capacity, args->core_id_index, offset+ref_len);
                                 if (rem_vars_size > rem_vars_capacity) rem_vars_capacity *= 2;
-                                vgd->data[vgd->size] = (struct vg_data_element){OUT_ALT_SV, args->core_id_index, offset, 0xFFFFFFFFFFFFFFFF, alt_token_copy, seq_id, order};
+                                vgd->data[vgd->size] = COLITERAL(vg_data_element){OUT_ALT_SV, args->core_id_index, offset, 0xFFFFFFFFFFFFFFFF, alt_token_copy, seq_id, order};
                             }
                             vgd->size++;
                             args->core_id_index++;
@@ -857,3 +854,4 @@ void vg_read_vcf(struct opt_arg *args, struct ref_seq *seqs) {
     fclose(out_segment);
     fclose(out_link);
 }
+

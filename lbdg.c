@@ -87,3 +87,4 @@ void lbdg_print_ref_seq(struct ref_seq *seqs, FILE *out) {
 
     free(bit_arr);
 }
+

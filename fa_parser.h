@@ -47,3 +47,4 @@ void read_fasta(struct opt_arg *args, struct ref_seq *seqs);
 void print_ref_seqs(const struct ref_seq *seqs, int is_rgfa, FILE *out);
 
 #endif
+

@@ -13,7 +13,7 @@ struct tpool_work *tpool_work_create(thread_func_t func, void *arg) {
     if (func == NULL)
         return NULL;
 
-    work = malloc(sizeof(struct tpool_work));
+    work = (struct tpool_work *) malloc(sizeof(struct tpool_work));
     work->func = func;
     work->arg = arg;
     work->next = NULL;
@@ -63,7 +63,7 @@ struct tpool_work *tpool_work_get(struct tpool *tm) {
  * @param arg Pointer to the thread pool structure.
  */
 void* tpool_worker(void *arg) {
-    struct tpool *tm = arg;
+    struct tpool *tm = (struct tpool *) arg;
     struct tpool_work *work;
 
     while (1) {
@@ -106,7 +106,7 @@ struct tpool *tpool_create(size_t num) {
     if (num == 0)
         num = 1;
 
-    tm = calloc(1, sizeof(*tm));
+    tm = (struct tpool *) calloc(1, sizeof(*tm));
     tm->thread_cnt = num;
 
     pthread_mutex_init(&(tm->work_mutex), NULL);

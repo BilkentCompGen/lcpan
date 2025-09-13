@@ -8,6 +8,12 @@
 #include <string.h>
 #include <pthread.h>
 
+#if defined (__cplusplus)
+    #define COLITERAL(type) type
+#else
+    #define COLITERAL(type) (struct type)
+#endif
+
 #define MIN(a,b) (((a)<(b))?(a):(b))
 #define MAX(a,b) (((a)>(b))?(a):(b))
 

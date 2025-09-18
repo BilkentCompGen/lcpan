@@ -1,5 +1,5 @@
-#ifndef __LBDG_H__
-#define __LBDG_H__
+#ifndef __LDBG_H__
+#define __LDBG_H__
 
 #include "struct_def.h"
 #include "utils.h"
@@ -10,7 +10,7 @@
 /**
  * @brief Prints reference sequences and their LCP cores in rGFA format.
  *
- * This function outputs the reference sequences (LBDG) and their Locally Consistent
+ * This function outputs the reference sequences (LDBG) and their Locally Consistent
  * Parsing (LCP) cores in rGFA/GFA format. The cores are printed as segments and
  * links, depending on the provided options.
  *
@@ -19,6 +19,6 @@
  * @param out        A file pointer to the output file where the formatted segments
  *                   and links will be written.
  */
-void lbdg_print_ref_seq(struct ref_seq *seqs, FILE *out);
+void ldbg_print_ref_seq(struct ref_seq *seqs, FILE *out);
 
 #endif

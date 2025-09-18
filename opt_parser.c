@@ -49,7 +49,7 @@ void printUsage() {
     fprintf(stderr, "[PROGRAM]: \n");
     fprintf(stderr, "\t-vg:         Uses a variation graph-based approach.\n");
     fprintf(stderr, "\t-vgx:        Uses a expanded variation graph-based approach.\n");
-    // fprintf(stderr, "\t-lbdg:       Uses LCP based de-Bruijn graph approach in construction.\n");
+    // fprintf(stderr, "\t-ldbg:       Uses LCP-based de-Bruijn graph approach in construction.\n");
     // fprintf(stderr, "\t-aloe-vera:  Uses progressive genome alignment.\n");
 }
 
@@ -80,12 +80,12 @@ void parse_opts(int argc, char* argv[], struct opt_arg *args) {
         }
         args->program = VGX;
     } 
-    // else if (strcmp(argv[1], "-lbdg") == 0) {
+    // else if (strcmp(argv[1], "-ldbg") == 0) {
     //     if (argc<4) {
-    //         fprintf(stderr, "Format: ./lcpan -lbdg -r ref.fa [OPTIONS]\n");
+    //         fprintf(stderr, "Format: ./lcpan -ldbg -r ref.fa [OPTIONS]\n");
     //         exit(EXIT_FAILURE);
     //     }
-    //     args->program = LBDG;
+    //     args->program = LDBG;
     // } 
     // else if (strcmp(argv[1], "-aloe-vera") == 0) {
     //     if (argc<5) {

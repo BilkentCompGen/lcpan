@@ -10,7 +10,7 @@
 typedef enum {
     VG,
     VGX,
-    LBDG
+    LDBG
 } program_mode;
 
 struct opt_arg {

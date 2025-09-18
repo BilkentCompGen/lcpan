@@ -1,6 +1,6 @@
-#include "lbdg.h"
+#include "ldbg.h"
 
-void lbdg_print_ref_seq(struct ref_seq *seqs, FILE *out) {
+void ldbg_print_ref_seq(struct ref_seq *seqs, FILE *out) {
 
     printf("[INFO] Processing reference...\n");
 

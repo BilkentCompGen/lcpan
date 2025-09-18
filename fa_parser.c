@@ -199,7 +199,7 @@ void vgx_process_chrom(char *sequence, uint64_t seq_size, int lcp_level, int ski
     *core_id_index = id;
 }
 
-void lbdg_process_chrom(char *sequence, uint64_t seq_size, int lcp_level, struct chr *chrom) {
+void ldbg_process_chrom(char *sequence, uint64_t seq_size, int lcp_level, struct chr *chrom) {
     uint64_t estimated_core_size = (int)(seq_size / pow(1.5, lcp_level));
     chrom->cores_size = 0;
 
@@ -331,8 +331,8 @@ void read_fasta(struct opt_arg *args, struct ref_seq *seqs) {
             if (sequence_size != 0) {
                 if (args->program == VG || args->program == VGX) {
                     vgx_process_chrom(seqs->chrs[index].seq, sequence_size, args->lcp_level, args->skip_masked, &(seqs->chrs[index]), &(args->core_id_index));
-                } else if (args->program == LBDG) {
-                    lbdg_process_chrom(seqs->chrs[index].seq, sequence_size, args->lcp_level, &(seqs->chrs[index]));
+                } else if (args->program == LDBG) {
+                    ldbg_process_chrom(seqs->chrs[index].seq, sequence_size, args->lcp_level, &(seqs->chrs[index]));
                 }
                 sequence_size = 0;
                 index++;
@@ -347,8 +347,8 @@ void read_fasta(struct opt_arg *args, struct ref_seq *seqs) {
     if (sequence_size != 0) {
         if (args->program == VG || args->program == VGX) {
             vgx_process_chrom(seqs->chrs[index].seq, sequence_size, args->lcp_level, args->skip_masked, &(seqs->chrs[index]), &(args->core_id_index));
-        } else if (args->program == LBDG) {
-            lbdg_process_chrom(seqs->chrs[index].seq, sequence_size, args->lcp_level, &(seqs->chrs[index]));
+        } else if (args->program == LDBG) {
+            ldbg_process_chrom(seqs->chrs[index].seq, sequence_size, args->lcp_level, &(seqs->chrs[index]));
         }
         index++;
     }

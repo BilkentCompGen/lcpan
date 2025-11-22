@@ -70,7 +70,7 @@ This command constructs a variation graph for the input FASTA and VCF files, app
 ## Citation
 If you use LCPan in your work, please cite:
 - LCPan: efficient variation graph construction using Locally Consistent Parsing. Akmuhammet Ashyralyyev, Zülal Bingöl, Begüm Filiz Öz, Salem Malikic, Uzi Vishkin, S. Cenk Sahinalp, Can Alkan. [arXiv: 2511.12205](https://doi.org/10.48550/arXiv.2511.12205), 2025.
-- 
+ 
 ## License
 
 `lcpan` is released under the BSD 3-Clause License, which allows for redistribution and use in source and binary forms, with or without modification, under certain conditions. For more detailed terms, please refer to the [license file](https://github.com/BilkentCompGen/lcpan/blob/main/LICENSE).

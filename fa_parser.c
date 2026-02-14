@@ -282,6 +282,9 @@ void read_fasta(struct opt_arg *args, struct ref_seq *seqs) {
     chrom_index = 0;
     uint64_t global_index = 0;
 
+    time_t main_start;
+    time(&main_start);
+
     while (fgets(line, sizeof(line), idx) != NULL) {
         char *name, *length;
         
@@ -354,6 +357,11 @@ void read_fasta(struct opt_arg *args, struct ref_seq *seqs) {
     }
 
     fclose(ref);
+
+    time_t main_end;
+    time(&main_end);
+
+    printf("[INFO] Reference processing completed in %0.2f sec.\n", difftime(main_end, main_start));
 }
 
 void print_ref_seqs(const struct ref_seq *seqs, int is_rgfa, FILE *out) {

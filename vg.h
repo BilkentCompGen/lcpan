@@ -1,11 +1,19 @@
 #ifndef __VG_H__
 #define __VG_H__
 
+#ifndef _GNU_SOURCE
+#define _GNU_SOURCE
+#endif
+
 #include "struct_def.h"
 #include "utils.h"
 #include "tpool.h"
 #include <stdio.h>
 #include <string.h>
+#include <time.h>
+#ifdef __linux__
+#include <sys/prctl.h>
+#endif
 
 #define DEFAULT_ARRAY_CAPACITY 10
 

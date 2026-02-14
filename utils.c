@@ -40,6 +40,57 @@ void quicksort(uint64_t *array, int low, int high) {
     }
 }
 
+void open_file_r(FILE **file, const char *filename) {
+    *file = fopen(filename, "r");
+    if (*file == NULL) {
+        fprintf(stderr, "[ERROR] Couldn't open file %s\n", filename);
+        exit(EXIT_FAILURE);
+    }
+}
+
+void open_file_w(FILE **file, const char *filename) {
+    *file = fopen(filename, "w");
+    if (*file == NULL) {
+        fprintf(stderr, "[ERROR] Couldn't open file %s\n", filename);
+        exit(EXIT_FAILURE);
+    }
+}
+
+void open_files(struct opt_arg *args, FILE **out_segment, FILE **out_link) {
+
+    *out_segment = NULL;
+    *out_link = NULL;
+
+    // create segment file name and open it
+    char segment_filename[strlen(args->gfa_path)+5];
+    snprintf(segment_filename, sizeof(segment_filename), "%s.s.0", args->gfa_path);
+    open_file_w(out_segment, segment_filename);
+
+    // create link file name and open it
+    char link_filename[strlen(args->gfa_path)+5];
+    snprintf(link_filename, sizeof(link_filename), "%s.l.0", args->gfa_path);
+    open_file_w(out_link, link_filename);
+
+    // print header
+    fprintf(*out_segment, "H\tVN:Z:1.1\n");
+
+    FILE *out_log;
+    if (args->prefix == NULL) {
+        char out_err_filename[10];
+        snprintf(out_err_filename, sizeof(out_err_filename), "lcpan.log");
+        open_file_w(&out_log, out_err_filename);
+    } else {
+        char out_err_filename[strlen(args->prefix)+5];
+        snprintf(out_err_filename, sizeof(out_err_filename), "%s.log", args->prefix);
+        open_file_w(&out_log, out_err_filename);
+    }
+
+    fprintf(out_log, "vg\n");
+    fprintf(out_log, "%s\n", args->gfa_path);
+    fprintf(out_log, "%d\n", args->thread_number);
+    fclose(out_log);
+}
+
 void print_seq3(uint64_t id, const char *seq1, int seq1_len, 
                              const char *seq2, int seq2_len,
                              const char *seq3, int seq3_len,

@@ -63,48 +63,52 @@ struct line_queue {
 };
 
 typedef enum {
-    IN_SNP,
-    IN_INS,
-    IN_INS_SV,
-    IN_DEL,
-    IN_ALT,
-    IN_ALT_SV,
-    OUT_SNP,
-    OUT_INS,
-    OUT_INS_SV,
-    OUT_DEL,
-    OUT_ALT,
-    OUT_ALT_SV,
-    INCOMING
-} vg_data_element_type;
+    VG_DIR_IN,
+    VG_DIR_OUT,
+    VG_DIR_INCOMING
+} vg_direction_t;
 
-struct vg_data_element {
-    vg_data_element_type type;
-    uint64_t id;
-    uint64_t start;
-    uint64_t end;
-    char *seq;
-    char *seq_id;
-    int order;
-};
+typedef enum {
+    VG_VAR_SNP,
+    VG_VAR_INS,
+    VG_VAR_INS_SV,
+    VG_VAR_DEL,
+    VG_VAR_ALT,
+    VG_VAR_ALT_SV,
+    VG_VAR_NONE
+} vg_variant_t;
 
-struct vg_data {
+typedef struct {
+    vg_direction_t dir;     /** variation direction */
+    vg_variant_t   var;     /** variation type */
+    uint64_t id;            /** id of the lcp core */
+    uint64_t start;         /** start of the lcp core */
+    uint64_t end;           /** end of the lcp core */
+    char *seq;              /** the chromosome seqeunce that lcp core lies */
+    char *seq_id;           /** the name of the chromosome sequence */
+    int order;              /** the variation's index. there might be multiple haplotides in the same index. helps to determine the order */
+} vg_element_t;
+
+typedef struct {
     int chr_idx;                  /** Chromosome index. */
     int core_idx;                 /** LCP core index in chromosome. */
+    
     int capacity;                 /** Capacity of variation array. */
     int size;                     /** Size of variation array. */
+    
     uint64_t prev_id;             /** previous segment's id. */
     uint64_t curr_id;             /** current segment's id. */
-    struct vg_data_element *data; /** Pointer to variations array. */
-};
+    
+    vg_element_t *items;          /** Pointer to variations array. */
+} vg_core_bucket_t;
 
-struct vg_data_queue {
-    struct vg_data **data; /** Queue to data of the variations to be processed. */
-    int size;              /** The size of the queue. */
-    int capacity;          /** Capacity of the queue. */
-    int front;             /** The index for the pushing point. */
-    int rear;              /** The index for the popping point. */
-};
+typedef struct {
+    vg_core_bucket_t **items;   /** Queue to data of the variations to be processed. */
+    int size;                   /** The size of the queue. */
+    int capacity;               /** Capacity of the queue. */
+    int front;                  /** The index for the pushing point. */
+    int rear;                   /** The index for the popping point. */
+} vg_work_queue_t;
 
 struct t_arg {
     uint64_t core_id_index;
@@ -116,6 +120,7 @@ struct t_arg {
     int failed_var_count;
     int invalid_line_count;
     int bubble_count;
+    double exec_time;
     FILE *out1;
     FILE *out2;
     void *queue;

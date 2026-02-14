@@ -1,10 +1,8 @@
 # Pipeline for experiments (VG)
 
-## NOTE: It is assumed that you have `hg38.fa` reference genome and `hprc-v1.0-pggb.grch38.1-22+X.vcf` variant calls files. 
+## NOTE: It is assumed that you have `human_v38.fa` reference genome and `hprc-v1.0-pggb.grch38.1-22+X.vcf` HPRC variant calls files. 
 ## NOTE: You can get HPRC data from:
 ##          https://s3-us-west-2.amazonaws.com/human-pangenomics/index.html?prefix=pangenomes/freeze/freeze1/pggb/vcfs/
-## NOTE: HG002 reference (diploid) genome can be found at:
-##          https://s3-us-west-2.amazonaws.com/human-pangenomics/T2T/HG002/assemblies/hg002v1.1.fasta.gz 
 ## NOTE: Pacbio-HiFi reads can be found at:
 ##          https://s3-us-west-2.amazonaws.com/human-pangenomics/T2T/HG002/assemblies/polishing/HG002/v1.0/mapping/hifi_revio_pbmay24/hg002v1.0.1_hifi_revio_pbmay24.bam
 ## NOTE: ONT reads can be found at:
@@ -17,39 +15,140 @@
 ##      sed -n '1~4s/^@/>/p;2~4p' hg002v1.0.1_hifi_revio_pbmay24.chr1_10_22.fastq > hg002v1.0.1_hifi_revio_pbmay24.chr1_10_22.fa
 ##      rm hg002v1.0.1_hifi_revio_pbmay24.chr1_10_22.fastq
 ##      seqtk sample -s100 hg002v1.0.1_hifi_revio_pbmay24.chr1_10_22.fa 0.45 > hg002v1.0.1_hifi_revio_pbmay24.chr1_10_22.subsampled.fa
+##      
+##      samtools view -b hg002v1.0.1_hifi_revio_pbmay24.bam | samtools fastq - > hg002v1.0.1_hifi_revio_pbmay24.fastq
+##      sed -n '1~4s/^@/>/p;2~4p' hg002v1.0.1_hifi_revio_pbmay24.fastq > hg002v1.0.1_hifi_revio_pbmay24.fa
+##      rm hg002v1.0.1_hifi_revio_pbmay24.fastq
+##      seqtk sample -s100 hg002v1.0.1_hifi_revio_pbmay24.fa 0.45 > hg002v1.0.1_hifi_revio_pbmay24.subsampled.fa
+##      mv hg002v1.0.1_hifi_revio_pbmay24.subsampled.fa hg002v1.0.1_hifi_revio_pbmay24.fa
 ##  ONT:
 ##      samtools view -b hg002v1.0_ont_r10_ul_dorado.bam chr1_MATERNAL chr1_PATERNAL chr10_MATERNAL chr10_PATERNAL chr22_MATERNAL chr22_PATERNAL | samtools fastq - > hg002v1.0_ont_r10_ul_dorado.chr1_10_22.fastq
 ##      sed -n '1~4s/^@/>/p;2~4p' hg002v1.0_ont_r10_ul_dorado.chr1_10_22.fastq > hg002v1.0_ont_r10_ul_dorado.chr1_10_22.fa
 ##      rm hg002v1.0_ont_r10_ul_dorado.chr1_10_22.fastq
 ##      seqtk sample -s100 hg002v1.0_ont_r10_ul_dorado.chr1_10_22.fa 0.25 > hg002v1.0_ont_r10_ul_dorado.chr1_10_22.subsampled.fa
 ##
-## The required data and program executables structure should be as follows:
-##      ├── hg002.fa
-##      ├── hg38.fa
-##      ├── hg38.fa.fai
+## The required data:
+##      ├── human_v38.fa
+##      ├── human_v38.fa.fai
 ##      ├── hprc-v1.0-pggb.grch38.1-22+X.vcf
+##      ├── hprc-v1.0-pggb.grch38.1-22+X.vcf.gz
+##      ├── hprc-v1.0-pggb.grch38.1-22+X.vcf.gz.tbi
 ##      ├── HG002_GRCh38.pbsv.vcf.gz
 ##      ├── HG002_GRCh38.pbsv.vcf.gz.tbi
 ##      └── reads/
+##          ├── hg002v1.0.1_hifi_revio_pbmay24.fa
 ##          ├── hg002v1.0.1_hifi_revio_pbmay24.chr1_10_22.subsampled.fa
 ##          └── hg002v1.0_ont_r10_ul_dorado.chr1_10_22.subsampled.fa
 ##
 ## NOTE: samtools is required (system wide installed) for gaf to sam converion
 
+# MODES
+: "${LOCAL_TMP:=true}"
+: "${LCPAN_RGFA:=true}"
+: "${LCPAN_GFA:=true}"
+: "${LCPAN_THD:=true}"
+: "${VG_THD:=true}"
+: "${ALIGN_LIMITED:=true}"
+: "${ALIGN:=true}"
+
+# Directories and files
+# Program will copy the files to the 
 AKHAL_DIR=
 GRAPHALIGNER_DIR=
 LCPAN_DIR=
 LCPANMERGE_DIR=
-PBSIM_DIR=
 
-# Simulate reads mode
-: "${SIM:=false}"
+FASTA=
+FAI=
+HPRC=
+HPRC_GZ=
+HPRC_GZ_TBI=
 
-if [ "$SIM" = "false" ]; then 
-    echo "Simulation of PacBio-HiFi reads is false."
-    echo "If you want, you can run :"
-    echo "      SIM=true ./vg-pipeline.sh"
+HG002_VCF=
+PACBIO_FA=
+PACBIO_SUB_FA=
+ONT_SUB_FA=
+
+if [ "$LOCAL_TMP" = "true" ]; then
+    cd /tmp
 fi
+
+mkdir -p lcpan
+cd lcpan
+
+### ---------------------------------------------------------------------------------
+### ---------------------------------------------------------------------------------
+### Prepare DATA
+### ---------------------------------------------------------------------------------
+### ---------------------------------------------------------------------------------
+
+if [ "$LOCAL_TMP" = "true" ]; then
+
+    FILE_FASTA=$(basename $FASTA)
+    FILE_FAI=$(basename $FAI)
+    FILE_HPRC=$(basename $HPRC)
+    FILE_HPRC_GZ=$(basename $HPRC_GZ)
+    FILE_HPRC_GZ_TBI=$(basename $HPRC_GZ_TBI)
+    FILE_HG002_VCF=$(basename $HG002_VCF)
+    FILE_PACBIO_FA=$(basename $PACBIO_FA)
+    FILE_PACBIO_SUB_FA=$(basename $PACBIO_SUB_FA)
+    FILE_ONT_SUB_FA=$(basename $ONT_SUB_FA)
+
+    if [ ! -f $FILE_FASTA ]; then
+        cp $FASTA .
+    fi
+    FASTA="/tmp/lcpan/$FILE_FASTA"
+    if [ ! -f $FILE_FAI ]; then
+        cp $FAI .
+    fi
+    FAI="/tmp/lcpan/$FILE_FAI"
+    if [ ! -f $FILE_HPRC ]; then
+        cp $HPRC .
+    fi
+    HPRC="/tmp/lcpan/$FILE_HPRC"
+    if [ ! -f $FILE_HPRC_GZ ]; then
+        cp $HPRC_GZ .
+    fi
+    HPRC_GZ="/tmp/lcpan/$FILE_HPRC_GZ"
+    if [ ! -f $FILE_HPRC_GZ_TBI ]; then
+        cp $HPRC_GZ_TBI .
+    fi
+    HPRC_GZ_TBI="/tmp/lcpan/$FILE_HPRC_GZ_TBI"
+    if [ ! -f $FILE_HG002_VCF ]; then
+        cp $HG002_VCF .
+        cp "$HG002_VCF.tbi" .
+    fi
+    HG002_VCF="/tmp/lcpan/$FILE_HG002_VCF"
+
+    mkdir -p reads
+
+    cd reads
+
+    if [ "$ALIGN_LIMITED" = "true" ]; then
+        if [ ! -f $FILE_PACBIO_SUB_FA ]; then
+            cp $PACBIO_SUB_FA .
+        fi
+        PACBIO_SUB_FA="/tmp/lcpan/reads/$FILE_PACBIO_SUB_FA"
+        if [ ! -f $FILE_ONT_SUB_FA ]; then
+            cp $ONT_SUB_FA .
+        fi
+        ONT_SUB_FA="/tmp/lcpan/reads/$FILE_ONT_SUB_FA"
+    fi
+    if [ "$ALIGN" = "true" ]; then
+        if [ ! -f $FILE_PACBIO_FA ]; then
+            cp $PACBIO_FA .
+        fi
+        PACBIO_FA="/tmp/lcpan/reads/$FILE_PACBIO_FA"
+    fi
+
+    cd ..
+fi
+
+### ---------------------------------------------------------------------------------
+### ---------------------------------------------------------------------------------
+### HELPER FUNCTIONS
+### ---------------------------------------------------------------------------------
+### ---------------------------------------------------------------------------------
 
 time_to_seconds() {
     IFS=: read -r -a parts <<< "$1"
@@ -61,6 +160,13 @@ time_to_seconds() {
         echo "0"; return
     fi
     echo "$h*3600 + $m*60 + $s" | bc -l
+}
+
+file_size() {
+    local file=$1
+
+    local file_b=$(stat --format="%s" $file 2>/dev/null)
+    echo "scale=2; $file_b/(1024*1024*1024)" | bc -l
 }
 
 parse_file() {
@@ -89,6 +195,7 @@ parse_file() {
 }
 
 parse_2files() {
+    # it gets first two /bin/time -v results and ignores the rest (construct and merge)
     local file=$1
     local log=$2
     local out=$3
@@ -107,8 +214,7 @@ parse_2files() {
     local total_time=$(echo "$exec_time + $merge_time" | bc -l)
     local max_ram_kb=$(printf "%s\n%s\n" "${rams[0]}" "${rams[1]}" | sort -nr | head -n1)
     local max_ram_gb=$(echo "scale=2; $max_ram_kb/(1024*1024)" | bc -l)
-    local file_b=$(stat --format="%s" $file 2>/dev/null)
-    local file_gb=$(echo "scale=2; $file_b/(1024*1024*1024)" | bc -l)
+    local file_gb=$(file_size "$file")
 
     echo "Execution time (s): $exec_time" >> $out
     echo "Merge time (s): $merge_time" >> $out
@@ -141,36 +247,12 @@ fa_stats() {
     echo "" >> $out
 }
 
-pbsim_sim() {
-    local ref=$1
-    local error=$2
-
-    ${PBSIM_DIR}/src/pbsim --strategy wgs \
-        --method qshmm \
-        --qshmm "${PBSIM_DIR}/data/QSHMM-RSII.model" \
-        --depth 15 \
-        --genome "$ref.fa" \
-        --prefix "$ref.$error" \
-        --accuracy-mean "0.$error" > "pbsim.$ref.$error.out" 2>&1
-
-    cat "${ref}.${error}_"*.fastq > "${ref}.${error}.fastq" && \
-        rm -f "${ref}.${error}_"*.fastq && \
-        rm -f "${ref}.${error}_"*.maf && \
-        rm -f "${ref}.${error}"*.ref
-
-    sed -n '1~4s/^@/>/p;2~4p' "${ref}.${error}.fastq" > "${ref}.${error}.fa"
-    rm -f "${ref}.${error}.fastq"
-
-    mv "${ref}.${error}.fa" ../reads
-    mv "pbsim.$ref.$error.out" ../reads
-}
-
 graphaligner_run() {
     local graph=$1
-    local fa="../reads/$2"
+    local fa=$2
     local reads=$3
-    local hg38="hg38.chr1_10_22"
-    local hg002="hg002.chr1_10_22"
+    local hg38=$4
+    local hg002=$5
     local out="align.$hg002.$reads.$graph.out"
 
     /bin/time -v ${GRAPHALIGNER_DIR}/GraphAligner \
@@ -185,10 +267,10 @@ graphaligner_run() {
 
 pbsv_run() {
     local graph=$1
-    local fa="../reads/$2"
+    local fa=$2
     local reads=$3  
-    local hg38="hg38.chr1_10_22"
-    local hg002="hg002.chr1_10_22"
+    local hg38=$4
+    local hg002=$5
     local out="pbsv.$hg002.$reads.$graph.out"
 
     /bin/time -v ${AKHAL_DIR}/akhal gaf2sam \
@@ -196,7 +278,7 @@ pbsv_run() {
         "$hg002.$reads.$graph.gaf"  \
         "$fa" \
         "$hg002.$reads.$graph.sam" \
-        --simple >> "$out" 2>&1
+        --simple > "$out" 2>&1
     
     /bin/time -v ${AKHAL_DIR}/akhal sampoke \
         "$hg38.fa" \
@@ -204,9 +286,15 @@ pbsv_run() {
         "$hg002.$reads.$graph.qual.sam" >> "$out" 2>&1
     rm -f "$hg002.$reads.$graph.sam"
 
-    samtools view -@ 16 -bS "$hg002.$reads.$graph.qual.sam" | samtools sort -@ 16 -m 2G -o "$hg002.$reads.$graph.bam" && samtools index "$hg002.$reads.$graph.bam" >> "$out" 2>&1
+    samtools view -bo "$hg002.$reads.$graph.bam" "$hg002.$reads.$graph.qual.sam"
     rm -f "$hg002.$reads.$graph.qual.sam"
 
+    samtools sort -@ 16 -o "$hg002.$reads.$graph.sorted.bam" "$hg002.$reads.$graph.bam" 
+    rm -rf "$hg002.$reads.$graph.bam"
+    mv "$hg002.$reads.$graph.sorted.bam" "$hg002.$reads.$graph.bam"
+    samtools index -@ 16 "$hg002.$reads.$graph.bam"
+    
+    # Perform SV calling
     pbsv discover "$hg002.$reads.$graph.bam" "$hg002.$reads.$graph.svsig.gz"
     pbsv call -j 16 -t DEL,INS,INV -m 20 -A 3 -O 3 --call-min-read-perc-one-sample 20 "$hg38.fa" "$hg002.$reads.$graph.svsig.gz" "$hg002.$reads.$graph.vcf"
     rm -f "$hg002.$reads.$graph.svsig.gz"
@@ -228,295 +316,333 @@ pbsv_run() {
     echo -e "$reads.$graph\t${TP}\t${FP}\t${FN}\t0${PRECISION}\t0${RECALL}\t0${F1}" >> "stats.txt"
 }
 
-### Thread scaling analyses based on non-overlapping gfa graph
-
-echo "Experiment on different thread numbers started (nov-gfa)..."
-
-mkdir lcpan-threads
-cd lcpan-threads
-
-for t in 1 2 4 8 16; do \
-    /bin/time -v ${LCPAN_DIR}/lcpan -vg \
-        -r ../hg38.fa \
-        -v ../hprc-v1.0-pggb.grch38.1-22+X.vcf \
-        -p hg38.pggb.lcpan.t${t} \
-        -t $t \
-        --gfa \
-        --verbose > hg38.pggb.lcpan.t${t}.out 2>&1; \
-    /bin/time -v bash ${LCPANMERGE_DIR}/lcpan-merge.sh hg38.pggb.lcpan.t${t}.log >> hg38.pggb.lcpan.t${t}.out 2>&1; \
-done
-export AKHAL_DIR
-parallel '/bin/time -v ${AKHAL_DIR}/akhal parse hg38.pggb.lcpan.t{}.gfa >> hg38.pggb.lcpan.t{}.out 2>&1' ::: 1 2 4 8 16
-
-for t in 1 2 4 8 16; do
-    parse_2files "hg38.pggb.lcpan.t${t}.gfa" "hg38.pggb.lcpan.t${t}.out" "stats.txt"
-done
-
-rm -f *.log
-rm -f *.gfa
-
-cd ..
-
+### ---------------------------------------------------------------------------------
+### ---------------------------------------------------------------------------------
 ### LCP levels analyses based on non-overlapping rgfa graph
+### ---------------------------------------------------------------------------------
+### ---------------------------------------------------------------------------------
 
-echo "Experiment on different LCP levels started (nov-rgfa)..."
+if [ "$LCPAN_RGFA" = "true" ]; then
+    echo "Experiment on different LCP levels started (nov-rgfa)..."
 
-mkdir lcpan-levels-nov-rgfa
-cd lcpan-levels-nov-rgfa
+    mkdir -p lcpan-levels-nov-rgfa
+    cd lcpan-levels-nov-rgfa
 
-for l in 4 5 6 7; do \
-    /bin/time -v ${LCPAN_DIR}/lcpan -vg \
-        -r ../hg38.fa \
-        -v ../hprc-v1.0-pggb.grch38.1-22+X.vcf \
-        -p hg38.pggb.lcpan.l${l} \
-        -l ${l} \
-        --verbose > hg38.pggb.lcpan.l${l}.out 2>&1; \
-    /bin/time -v bash ${LCPANMERGE_DIR}/lcpan-merge.sh hg38.pggb.lcpan.l${l}.log >> hg38.pggb.lcpan.l${l}.out 2>&1; \
-done
-parallel '/bin/time -v ${AKHAL_DIR}/akhal parse hg38.pggb.lcpan.l{}.rgfa >> hg38.pggb.lcpan.l{}.out 2>&1' ::: 4 5 6 7
-parallel '${AKHAL_DIR}/akhal stats hg38.pggb.lcpan.l{}.rgfa >> hg38.pggb.lcpan.l{}.out 2>&1' ::: 4 5 6 7
+    for l in 4 5 6 7; do \
+        /bin/time -v ${LCPAN_DIR}/lcpan -vg \
+            -r "$FASTA" \
+            -v "$HPRC" \
+            -p hg38.pggb.lcpan.l${l} \
+            -l ${l} \
+            --verbose > hg38.pggb.lcpan.l${l}.out 2>&1; \
+        /bin/time -v bash ${LCPANMERGE_DIR}/lcpan-merge.sh hg38.pggb.lcpan.l${l}.log >> hg38.pggb.lcpan.l${l}.out 2>&1; \
+    done
+    parallel '/bin/time -v ${AKHAL_DIR}/akhal parse hg38.pggb.lcpan.l{}.rgfa >> hg38.pggb.lcpan.l{}.out 2>&1' ::: 4 5 6 7
+    parallel '${AKHAL_DIR}/akhal stats hg38.pggb.lcpan.l{}.rgfa >> hg38.pggb.lcpan.l{}.out 2>&1' ::: 4 5 6 7
 
-for l in 4 5 6 7; do
-    parse_2files "hg38.pggb.lcpan.l${l}.rgfa" "hg38.pggb.lcpan.l${l}.out" "stats.txt"
-done
+    for l in 4 5 6 7; do
+        parse_2files "hg38.pggb.lcpan.l${l}.rgfa" "hg38.pggb.lcpan.l${l}.out" "stats.txt"
+    done
 
-rm -f *.log
-rm -f *.rgfa
+    rm -f *.log
+    rm -f *.rgfa
 
-cd ..
+    cd ..
+fi
 
+### ---------------------------------------------------------------------------------
+### ---------------------------------------------------------------------------------
 ### LCP levels analyses based on non-overlapping gfa graph
+### ---------------------------------------------------------------------------------
+### ---------------------------------------------------------------------------------
 
-echo "Experiment on different LCP levels started (nov-gfa)..."
+if [ "$LCPAN_GFA" = "true" ]; then
+    echo "Experiment on different LCP levels started (nov-gfa)..."
 
-mkdir lcpan-levels-nov-gfa
-cd lcpan-levels-nov-gfa
+    mkdir -p lcpan-levels-nov-gfa
+    cd lcpan-levels-nov-gfa
 
-for l in 4 5 6 7; do \
-    /bin/time -v ${LCPAN_DIR}/lcpan -vg \
-        -r ../hg38.fa \
-        -v ../hprc-v1.0-pggb.grch38.1-22+X.vcf \
-        -p hg38.pggb.lcpan.l${l} \
-        -l ${l} \
-        --verbose \
-        --gfa > hg38.pggb.lcpan.l${l}.out 2>&1; \
-    /bin/time -v bash ${LCPANMERGE_DIR}/lcpan-merge.sh hg38.pggb.lcpan.l${l}.log >> hg38.pggb.lcpan.l${l}.out 2>&1; \
-done
-parallel '/bin/time -v ${AKHAL_DIR}/akhal parse hg38.pggb.lcpan.l{}.gfa >> hg38.pggb.lcpan.l{}.out 2>&1' ::: 4 5 6 7
-parallel '${AKHAL_DIR}/akhal stats hg38.pggb.lcpan.l{}.gfa >> hg38.pggb.lcpan.l{}.out 2>&1' ::: 4 5 6 7
+    for l in 4 5 6 7; do \
+        /bin/time -v ${LCPAN_DIR}/lcpan -vg \
+            -r "$FASTA" \
+            -v "$HPRC" \
+            -p hg38.pggb.lcpan.l${l} \
+            -l ${l} \
+            --verbose \
+            --gfa > hg38.pggb.lcpan.l${l}.out 2>&1; \
+        /bin/time -v bash ${LCPANMERGE_DIR}/lcpan-merge.sh hg38.pggb.lcpan.l${l}.log >> hg38.pggb.lcpan.l${l}.out 2>&1; \
+    done
+    parallel '/bin/time -v ${AKHAL_DIR}/akhal parse hg38.pggb.lcpan.l{}.gfa >> hg38.pggb.lcpan.l{}.out 2>&1' ::: 4 5 6 7
+    parallel '${AKHAL_DIR}/akhal stats hg38.pggb.lcpan.l{}.gfa >> hg38.pggb.lcpan.l{}.out 2>&1' ::: 4 5 6 7
 
-for l in 4 5 6 7; do
-    parse_2files "hg38.pggb.lcpan.l${l}.gfa" "hg38.pggb.lcpan.l${l}.out" "stats.txt"
-done
+    for l in 4 5 6 7; do
+        parse_2files "hg38.pggb.lcpan.l${l}.gfa" "hg38.pggb.lcpan.l${l}.out" "stats.txt"
+    done
 
-rm -f *.log
-rm -f *.gfa
+    rm -f *.log
+    rm -f *.gfa
 
-cd ..
+    cd ..
+fi
 
-### VG construction analyses with chunking principle
+### ---------------------------------------------------------------------------------
+### ---------------------------------------------------------------------------------
+### Thread scaling analyses based on non-overlapping gfa graph
+### ---------------------------------------------------------------------------------
+### ---------------------------------------------------------------------------------
 
-echo "Experiment on VG tool graph construction ..."
+if [ "$LCPAN_THD" = "true" ]; then
+    echo "Experiment on different thread numbers started (nov-gfa)..."
 
-mkdir vg-construction
-cd vg-construction
+    mkdir -p lcpan-threads
+    cd lcpan-threads
 
-CHUNK_SIZE=10000000
-rm -f hg38.chunks.txt
+    for t in 1 2 4 8 16; do \
+        /bin/time -v ${LCPAN_DIR}/lcpan -vg \
+            -r "$FASTA" \
+            -v "$HPRC" \
+            -p hg38.pggb.lcpan.t${t} \
+            -t $t \
+            --gfa \
+            --verbose > hg38.pggb.lcpan.t${t}.out 2>&1; \
+        /bin/time -v bash ${LCPANMERGE_DIR}/lcpan-merge.sh hg38.pggb.lcpan.t${t}.log >> hg38.pggb.lcpan.t${t}.out 2>&1; \
+    done
+    export AKHAL_DIR
+    parallel '/bin/time -v ${AKHAL_DIR}/akhal parse hg38.pggb.lcpan.t{}.gfa >> hg38.pggb.lcpan.t{}.out 2>&1' ::: 1 2 4 8 16
 
-while read -r chr chr_length _; do \
-	for ((i = 0; i * CHUNK_SIZE < chr_length; i++)); do \
-		start=$((i * CHUNK_SIZE + 1)); \
-		end=$(((i + 1) * CHUNK_SIZE)); \
-		[[ $end -gt $chr_length ]] && end=$chr_length; \
-		echo "${chr}:${start}-${end}" >> hg38.chunks.txt; \
-	done; \
-done < ../hg38.fa.fai
+    for t in 1 2 4 8 16; do
+        parse_2files "hg38.pggb.lcpan.t${t}.gfa" "hg38.pggb.lcpan.t${t}.out" "stats.txt"
+    done
 
-/bin/time -v bash -c "i=0; while read -r region; do output_file='chunk.'\"\${i}\"'.vg'; vg construct -r ../hg38.fa -v ../hprc-v1.0-pggb.grch38.1-22+X.vcf.gz -f -R \"\$region\" > \"\$output_file\"; ((i++)); done < hg38.chunks.txt" > hg38.pggb.vg.out 2>&1
-/bin/time -v vg combine -p chunk.*.vg > hg38.pggb.vg 2>> hg38.pggb.vg.out
-/bin/time -v vg convert -f hg38.pggb.vg > hg38.pggb.vg.gfa 2>> hg38.pggb.vg.out
-rm -f chunk.*.vg
-rm -f hg38.pggb.vg
-${AKHAL_DIR}/akhal stats hg38.pggb.vg.gfa >> hg38.pggb.vg.out 2>&1
+    rm -f *.log
+    rm -f *.gfa
 
-parse_2files "hg38.pggb.vg.gfa" "hg38.pggb.vg.out" "stats.txt"
+    cd ..
+fi
 
-rm -f hg38.chunks.txt
-rm -f hg38.pggb.vg.gfa
+### ---------------------------------------------------------------------------------
+### ---------------------------------------------------------------------------------
+### Thread scaling analyses based on VG tools
+### ---------------------------------------------------------------------------------
+### ---------------------------------------------------------------------------------
 
-cd ..
+if [ "$VG_THD" = "true" ]; then
+    echo "Experiment on different thread numbers started (vg)..."
 
+    mkdir -p vg-threads
+    cd vg-threads
+
+    CHUNK_SIZE=10000000
+    rm -f hg38.chunks.txt
+
+    # Construct chunks
+    while read -r chr chr_length _; do \
+        for ((i = 0; i * CHUNK_SIZE < chr_length; i++)); do \
+            start=$((i * CHUNK_SIZE + 1)); \
+            end=$(((i + 1) * CHUNK_SIZE)); \
+            [[ $end -gt $chr_length ]] && end=$chr_length; \
+            echo "${chr}:${start}-${end}" >> hg38.chunks.txt; \
+        done; \
+    done < "$FAI"
+
+    # Run threads
+    for t in 1 2 4 8 16; do
+        /bin/time -v bash -c '
+            i=0
+            while read -r region; do
+                output_file="chunk.${i}.vg"
+                vg construct -r "$1" \
+                            -v "$2" \
+                            -f -R "$region" \
+                            -t "$3" > "$output_file"
+                ((i++))
+            done < hg38.chunks.txt
+        ' _ "$FASTA" "$HPRC_GZ" "$t" > "hg38.pggb.vg.t$t.out" 2>&1
+
+        /bin/time -v vg combine -p chunk.*.vg > hg38.pggb.vg 2>> "hg38.pggb.vg.t$t.out"
+
+        rm -f chunk.*.vg
+
+        if [ "$t" -eq 1 ]; then
+            /bin/time -v vg convert -f hg38.pggb.vg > hg38.pggb.vg.gfa 2>> "hg38.pggb.vg.t$t.out"
+            parse_2files "hg38.pggb.vg.gfa" "hg38.pggb.vg.t$t.out" "stats.txt"
+            ${AKHAL_DIR}/akhal stats "hg38.pggb.vg.gfa" >> "hg38.pggb.vg.t$t.out" 2>&1
+            rm -f hg38.pggb.vg.gfa
+        else
+            parse_2files "hg38.pggb.vg" "hg38.pggb.vg.t$t.out" "stats.txt"
+        fi
+
+        rm -f hg38.pggb.vg
+    done
+
+    rm -f hg38.chunks.txt
+
+    cd ..
+fi
+
+### ---------------------------------------------------------------------------------
+### ---------------------------------------------------------------------------------
+### Alignment experiment (chr1_10_22)
+### ---------------------------------------------------------------------------------
+### ---------------------------------------------------------------------------------
+
+if [ "$ALIGN_LIMITED" = "true" ]; then
+    echo "Experiment on alignment for hg002 (chr1_10_22) ..."
+
+    mkdir -p alignment-chr1-10-22
+    cd alignment-chr1-10-22
+
+    PREFIX="hg38.chr1_10_22"
+    SUB_HPRC="hprc-v1.0-pggb.grch38.chr1_10_22.vcf"
+
+    if [ ! -f "$PREFIX.fa" ]; then
+        # Prepare reference and vcf files for chr 1, 10, and 22
+        seqkit grep -n -p "chr1" -p "chr10" -p "chr22" $FASTA -o "$PREFIX.fa"
+        samtools faidx "$PREFIX.fa"
+    else
+        echo "$PREFIX.fa already exists. skipping..."
+    fi
+
+    PREFIX_LEN=$(awk -F '\t' '{sum += $2} END {print sum}' "$PREFIX.fa.fai")
+    fa_stats $PACBIO_SUB_FA $PREFIX_LEN "stats.txt"
+    fa_stats $ONT_SUB_FA $PREFIX_LEN "stats.txt"
+
+    if [ ! -f "$SUB_HPRC" ]; then
+        grep -w '^#\|chr1\|chr10\|chr22' $HPRC > $SUB_HPRC
+    else
+        echo "$SUB_HPRC already exists. skipping..." 
+    fi
+
+    ### Create variation graphs
+    if [ ! -f "$PREFIX.pggb.lcpan.gfa" ]; then
+        echo "LCPan graph construction for alignment started ..."
+        /bin/time -v ${LCPAN_DIR}/lcpan -vg -r "$PREFIX.fa" -v $SUB_HPRC -p "$PREFIX.pggb.lcpan" --gfa --verbose > "$PREFIX.pggb.lcpan.out" 2>&1
+        /bin/time -v bash ${LCPANMERGE_DIR}/lcpan-merge.sh "$PREFIX.pggb.lcpan.log" >> "$PREFIX.pggb.lcpan.out" 2>&1
+        ${AKHAL_DIR}/akhal stats "$PREFIX.pggb.lcpan.gfa" >> "$PREFIX.pggb.lcpan.out" 2>&1
+        rm -f $PREFIX.pggb.lcpan.log
+    else
+        echo "$PREFIX.pggb.lcpan.gfa already exists. skipping construction..."
+    fi 
+
+    if [ ! -f "$PREFIX.pggb.vg.gfa" ]; then
+        echo "VG graph construction for alignment started ..."
+        /bin/time -v vg construct -r "$PREFIX.fa" -v $SUB_HPRC -m 64 -N -S > "$PREFIX.pggb.vg" 2> "$PREFIX.pggb.vg.out"
+        /bin/time -v vg convert -f "$PREFIX.pggb.vg" > "$PREFIX.pggb.vg.gfa" 2>> "$PREFIX.pggb.vg.out"
+        ${AKHAL_DIR}/akhal stats "$PREFIX.pggb.vg.gfa" >> "$PREFIX.pggb.vg.out" 2>&1
+        rm -f "$PREFIX.pggb.vg"
+    else
+        echo "$PREFIX.pggb.vg.gfa already exists. skipping construction..."
+    fi
+
+    # Only needed for construction of vg graphs
+    rm -f $SUB_HPRC
+
+    ## Align HiFi reads of (hg002)
+    echo "PacBio-HiFi GraphAligner"
+    graphaligner_run "lcpan" "$PACBIO_SUB_FA" "hifi" "$PREFIX" "hg002.chr1_10_22"
+    graphaligner_run "vg" "$PACBIO_SUB_FA" "hifi" "$PREFIX" "hg002.chr1_10_22"
+
+    ## Align ONT reads of (hg002)
+    echo "ONT GraphAligner"
+    graphaligner_run "lcpan" "$ONT_SUB_FA" "ont" "$PREFIX" "hg002.chr1_10_22"
+    graphaligner_run "vg" "$ONT_SUB_FA" "ont" "$PREFIX" "hg002.chr1_10_22"
+
+    mkdir -p out
+    mv *.out out
+
+    if [ ! -f "HG002_GRCh38.chr1_10_22.pbsv.expanded.bed" ]; then
+        bcftools view -r chr1,chr10,chr22 "$HG002_VCF" -o HG002_GRCh38.chr1_10_22.pbsv.vcf -O v
+        bcftools query -f '%CHROM\t%POS0\t%END\n' HG002_GRCh38.chr1_10_22.pbsv.vcf > HG002_GRCh38.chr1_10_22.pbsv.bed
+        rm -f HG002_GRCh38.chr1_10_22.pbsv.vcf
+
+        awk '{print $1"\t"$2}' "$PREFIX.fa.fai" > "$PREFIX.txt"
+        bedtools slop -i HG002_GRCh38.chr1_10_22.pbsv.bed -g "$PREFIX.txt" -b 100 > HG002_GRCh38.chr1_10_22.pbsv.expanded.bed
+        rm -f "$PREFIX.txt" HG002_GRCh38.chr1_10_22.pbsv.bed
+    fi
+
+    echo -e "Method\tTP\tFP\tFN\tPrecision\tRecall\tF1" >> "stats.txt"
+
+    ## Pacbio-HiFi SV detection
+    echo "Pacbio-HiFi pbsv"
+    pbsv_run "lcpan" "$PACBIO_SUB_FA" "hifi" "$PREFIX" "hg002.chr1_10_22"
+    pbsv_run "vg" "$PACBIO_SUB_FA" "hifi" "$PREFIX" "hg002.chr1_10_22"
+
+    ## ONT SV detection
+    echo "ONT pbsv"
+    pbsv_run "lcpan" "$ONT_SUB_FA" "ont" "$PREFIX" "hg002.chr1_10_22"
+    pbsv_run "vg" "$ONT_SUB_FA" "ont" "$PREFIX" "hg002.chr1_10_22"
+
+    rm -f *.bed
+
+    mv *.out out
+
+    cd ..
+fi
+
+### ---------------------------------------------------------------------------------
+### ---------------------------------------------------------------------------------
 ### Alignment experiment
+### ---------------------------------------------------------------------------------
+### ---------------------------------------------------------------------------------
 
-echo "Experiment on alignment for hg002 ..."
+if [ "$ALIGN" = "true" ]; then
+    echo "Experiment on alignment for hg002 ..."
 
-mkdir alignment
-cd alignment
+    mkdir -p alignment
+    cd alignment
+    
+    PREFIX="human_v38"
 
-# Prepare reference and vcf files for chr 1, 10, and 22
-seqkit grep -n -p "chr1" -p "chr10" -p "chr22" ../hg38.fa -o hg38.chr1_10_22.fa
-samtools faidx hg38.chr1_10_22.fa
+    TOTAL_LEN=$(awk -F '\t' '{sum += $2} END {print sum}' "$FAI")
+    fa_stats $PACBIO_FA $TOTAL_LEN "stats.txt"
 
-hg38_chr1_10_22_len=$(awk -F '\t' '{sum += $2} END {print sum}' hg38.chr1_10_22.fa.fai)
-fa_stats "../reads/hg002v1.0.1_hifi_revio_pbmay24.chr1_10_22.subsampled.fa" $hg38_chr1_10_22_len "stats.txt"
-fa_stats "../reads/hg002v1.0_ont_r10_ul_dorado.chr1_10_22.subsampled.fa" $hg38_chr1_10_22_len "stats.txt"
+    ### Create variation graphs
+    if [ ! -f "$PREFIX.pggb.lcpan.gfa" ]; then
+        echo "LCPan graph construction for alignment started ..."
+        /bin/time -v ${LCPAN_DIR}/lcpan -vg -r $FASTA -v $HPRC -p "$PREFIX.pggb.lcpan" --gfa --verbose > "$PREFIX.pggb.lcpan.out" 2>&1
+        /bin/time -v bash ${LCPANMERGE_DIR}/lcpan-merge.sh "$PREFIX.pggb.lcpan.log" >> "$PREFIX.pggb.lcpan.out" 2>&1
+        ${AKHAL_DIR}/akhal stats "$PREFIX.pggb.lcpan.gfa" >> "$PREFIX.pggb.lcpan.out" 2>&1
+        rm -f $PREFIX.pggb.lcpan.log
+    else
+        echo "$PREFIX.pggb.lcpan.gfa already exists. skipping construction..."
+    fi
 
-grep -w '^#\|chr1\|chr10\|chr22' ../hprc-v1.0-pggb.grch38.1-22+X.vcf > hprc-v1.0-pggb.grch38.chr1_10_22.vcf
+    if [ ! -f "$PREFIX.pggb.vg.gfa" ]; then
+        echo "VG graph construction for alignment started ..."
+        /bin/time -v vg construct -r "$FASTA" -v $HPRC -m 64 -N -S > "$PREFIX.pggb.vg" 2> "$PREFIX.pggb.vg.out"
+        /bin/time -v vg convert -f "$PREFIX.pggb.vg" > "$PREFIX.pggb.vg.gfa" 2>> "$PREFIX.pggb.vg.out"
+        ${AKHAL_DIR}/akhal stats "$PREFIX.pggb.vg.gfa" >> "$PREFIX.pggb.vg.out" 2>&1
+        rm -f "$PREFIX.pggb.vg"
+    else
+        echo "$PREFIX.pggb.lcpan.gfa already exists. skipping construction..."
+    fi
 
-if [ "$SIM" = "true" ]; then
-    #### Prepare data
-    seqkit grep -n -r -p "^chr1_" -p "^chr10_" -p "^chr22_" ../hg002.fa -o hg002.chr1_10_22.fa
+    #### Align HiFi reads of (hg002)
+    echo "PacBio-HiFi GraphAligner"
+    graphaligner_run "lcpan" "$PACBIO_FA" "hifi" "$PREFIX" "hg002"
+    graphaligner_run "vg" "$PACBIO_FA" "hifi" "$PREFIX" "hg002"
 
-    pbsim_sim "hg38.chr1_10_22" "85"
-    pbsim_sim "hg38.chr1_10_22" "90"
-    pbsim_sim "hg38.chr1_10_22" "95"
+    mkdir -p out
+    mv *.out out
 
-    rm -f hg002.chr1_10_22.fa
+    if [ ! -f "HG002_GRCh38.pbsv.expanded.bed" ]; then
+        bcftools query -f '%CHROM\t%POS0\t%END\n' $HG002_VCF > HG002_GRCh38.pbsv.bed
 
-    fa_stats "../reads/hg002.chr1_10_22.85.fa" $hg38_chr1_10_22_len "stats.txt"
-    fa_stats "../reads/hg002.chr1_10_22.90.fa" $hg38_chr1_10_22_len "stats.txt"
-    fa_stats "../reads/hg002.chr1_10_22.95.fa" $hg38_chr1_10_22_len "stats.txt"
+        awk '{print $1"\t"$2}' "$PREFIX.fa.fai" > "$PREFIX.txt"
+        bedtools slop -i HG002_GRCh38.pbsv.bed -g "$PREFIX.txt" -b 100 > HG002_GRCh38.pbsv.expanded.bed
+        rm -f "$PREFIX.txt" HG002_GRCh38.pbsv.bed
+    fi
+
+    echo -e "Method\tTP\tFP\tFN\tPrecision\tRecall\tF1" >> "stats.txt"
+
+    ## Pacbio-HiFi SV detection
+    echo "Pacbio-HiFi pbsv"
+    pbsv_run "lcpan" "$PACBIO_FA" "hifi" "$PREFIX" "hg002"
+    pbsv_run "vg" "$PACBIO_FA" "hifi" "$PREFIX" "hg002"
+
+    rm -f *.bed
+
+    mv *.out out
+
+    cd ..
 fi
-
-#### Create variation graphs
-echo "LCPan graph construction for alignment started ..."
-/bin/time -v ${LCPAN_DIR}/lcpan -vg -r hg38.chr1_10_22.fa -v hprc-v1.0-pggb.grch38.chr1_10_22.vcf -p hg38.chr1_10_22.pggb.lcpan --gfa --verbose > hg38.chr1_10_22.pggb.lcpan.out 2>&1
-/bin/time -v bash ${LCPANMERGE_DIR}/lcpan-merge.sh hg38.chr1_10_22.pggb.lcpan.log >> hg38.chr1_10_22.pggb.lcpan.out 2>&1
-${AKHAL_DIR}/akhal stats hg38.chr1_10_22.pggb.lcpan.gfa >> hg38.chr1_10_22.pggb.lcpan.out 2>&1
-rm -f hg38.chr1_10_22.pggb.lcpan.log
-
-echo "VG graph construction for alignment started ..."
-/bin/time -v vg construct -r hg38.chr1_10_22.fa -v hprc-v1.0-pggb.grch38.chr1_10_22.vcf -m 64 > hg38.chr1_10_22.pggb.vg 2> hg38.chr1_10_22.pggb.vg.out
-/bin/time -v vg convert -f hg38.chr1_10_22.pggb.vg > hg38.chr1_10_22.pggb.vg.gfa 2>> hg38.chr1_10_22.pggb.vg.out
-${AKHAL_DIR}/akhal stats hg38.chr1_10_22.pggb.vg.gfa >> hg38.chr1_10_22.pggb.vg.out 2>&1
-rm -f hg38.chr1_10_22.pggb.vg
-
-#### Align HiFi reads of (hg002)
-echo "PacBio-HiFi GraphAligner"
-graphaligner_run "lcpan" "hg002v1.0.1_hifi_revio_pbmay24.chr1_10_22.subsampled.fa" "hifi"
-graphaligner_run "vg" "hg002v1.0.1_hifi_revio_pbmay24.chr1_10_22.subsampled.fa" "hifi"
-
-#### Align ONT reads of (hg002)
-echo "ONT GraphAligner"
-graphaligner_run "lcpan" "hg002v1.0_ont_r10_ul_dorado.chr1_10_22.subsampled.fa" "ont"
-graphaligner_run "vg" "hg002v1.0_ont_r10_ul_dorado.chr1_10_22.subsampled.fa" "ont"
-
-if [ "$SIM" = "true" ]; then
-    #### Align PacBio-SIM (85) reads of (hg002)
-    echo "PacBio-SIM (85) GraphAligner"
-    graphaligner_run "lcpan" "hg002.chr1_10_22.85.fa" "85"
-    graphaligner_run "vg" "hg002.chr1_10_22.85.fa" "85"
-
-    #### Align PacBio-SIM (90) reads of (hg002)
-    echo "PacBio-SIM (90) GraphAligner"
-    graphaligner_run "lcpan" "hg002.chr1_10_22.90.fa" "90"
-    graphaligner_run "vg" "hg002.chr1_10_22.90.fa" "90"
-
-    #### Align PacBio-SIM (95) reads of (hg002)
-    echo "PacBio-SIM (95) GraphAligner"
-    graphaligner_run "lcpan" "hg002.chr1_10_22.95.fa" "95"
-    graphaligner_run "vg" "hg002.chr1_10_22.95.fa" "95"
-fi
-
-mkdir out
-mv *.out out
-
-bcftools view -r chr1,chr10,chr22 ../HG002_GRCh38.pbsv.vcf.gz -o HG002_GRCh38.chr1_10_22.pbsv.vcf -O v
-bcftools query -f '%CHROM\t%POS0\t%END\n' HG002_GRCh38.chr1_10_22.pbsv.vcf > HG002_GRCh38.chr1_10_22.pbsv.bed
-rm -f HG002_GRCh38.chr1_10_22.pbsv.vcf
-
-awk '{print $1"\t"$2}' hg38.chr1_10_22.fa.fai > hg38.chr1_10_22.txt
-bedtools slop -i HG002_GRCh38.chr1_10_22.pbsv.bed -g hg38.chr1_10_22.txt -b 100 > HG002_GRCh38.chr1_10_22.pbsv.expanded.bed
-rm -f hg38.chr1_10_22.txt
-rm -f HG002_GRCh38.chr1_10_22.pbsv.bed
-
-echo -e "Method\tTP\tFP\tFN\tPrecision\tRecall\tF1" >> "stats.txt"
-
-## Pacbio-HiFi SV detection
-echo "Pacbio-HiFi pbsv"
-pbsv_run "lcpan" "hg002v1.0.1_hifi_revio_pbmay24.chr1_10_22.subsampled.fa" "hifi"
-pbsv_run "vg" "hg002v1.0.1_hifi_revio_pbmay24.chr1_10_22.subsampled.fa" "hifi"
-
-## ONT SV detection
-echo "ONT pbsv"
-pbsv_run "lcpan" "hg002v1.0_ont_r10_ul_dorado.chr1_10_22.subsampled.fa" "ont"
-pbsv_run "vg" "hg002v1.0_ont_r10_ul_dorado.chr1_10_22.subsampled.fa" "ont"
-
-if [ "$SIM" = "true" ]; then
-    #### PacBio-SIM (85) SV detection
-    echo "PacBio-SIM (85) pbsv"
-    pbsv_run "lcpan" "hg002.chr1_10_22.85.fa" "85"
-    pbsv_run "vg" "hg002.chr1_10_22.85.fa" "85"
-
-    #### PacBio-SIM (90) SV detection
-    echo "PacBio-SIM (90) pbsv"
-    pbsv_run "lcpan" "hg002.chr1_10_22.90.fa" "90"
-    pbsv_run "vg" "hg002.chr1_10_22.90.fa" "90"
-
-    #### PacBio-SIM (95) SV detection
-    echo "PacBio-SIM (95) pbsv"
-    pbsv_run "lcpan" "hg002.chr1_10_22.95.fa" "95"
-    pbsv_run "vg" "hg002.chr1_10_22.95.fa" "95"
-fi
-
-rm -f *.bed
-
-cd ..
-
-# mv results to seperate folder
-mkdir lcpan.vg
-mv lcpan-threads lcpan.vg
-mv lcpan-levels-nov-rgfa lcpan.vg
-mv lcpan-levels-nov-gfa lcpan.vg
-mv vg-construction lcpan.vg
-mv alignment lcpan.vg
-mv lcpan.vg ../results
-
-### gprof
-
-## If you want to profile the LCPan-VG with gprof, please modify Makefiles by removing optimization (from -O3 to -O0) and adding `-pg` flag in `lcpan` and `lcptools`. Then, please run:
-
-# mkdir lcpan-vg-gprof
-# cd lcpan-vg-gprof
-# 
-# for t in 1 2 4 8 16; do \
-#     ../lcpan -r hg38.fa -v hprc-v1.0-pggb.grch38.1-22+X.vcf -p hg38.pggb.lcpan.t${t}.gprof -t $t --verbose > hg38.pggb.lcpan.t${t}.gprof.out 2>&1; \
-#     ../lcpan-merge.sh hg38.pggb.lcpan.t${t}.gprof.log >> hg38.pggb.lcpan.t${t}.gprof.out 2>&1; \
-#      mv gmon.out gmon.out.t${t}; \
-# done
-# rm -f *.gfa
-#
-# for t in 1 2 4 8 16; do \
-#     gprof ../lcpan gmon.out.t${t} > hg38.pggb.lcpan.t${t}.gprof; \
-# done
-#
-# cd ..
-#
-# mv lcpan-vg-gprof lcpan.vg
-
-### perf
-
-## You can run the profiling using `perf` on LCPan as follows. Note that you need a `sudo` privilidge to run this script as perf requires to access core level parameters to make calculations.
-
-# mkdir lcpan-vg-perf
-# cd lcpan-vg-perf
-#
-# perf_stat_metrics="duration_time,branch-instructions,branch-misses,cache-misses,cache-references,cpu-cycles,instructions,mem-loads,mem-stores,cycles,instructions,branches,faults,migrations,L1-dcache-loads,L1-dcache-stores,L1-dcache-prefetch-misses,L1-dcache-load-misses,LLC-loads,LLC-load-misses,LLC-stores,LLC-store-misses,LLC-prefetch-misses";
-#
-# for t in 1 2 4 8 16; do \
-#     sudo perf stat -o "hg38.pggb.lcpan.t${t}.perf-stat.txt" -B -e $perf_stat_metrics \
-#         ../lcpan -r hg38.fa -v hprc-v1.0-pggb.grch38.1-22+X.vcf -p hg38.pggb.lcpan.t${t}.perf -t $t --verbose > hg38.pggb.lcpan.t${t}.perf.out 2>&1; \
-#     sudo chown "$USER:$USER" "hg38.pggb.lcpan.t${t}.perf-stat.txt"; \
-#     for ((i=1; i<=${t}; i++)); do \
-#         sudo chown "$USER:$USER" hg38.pggb.lcpan.t${t}.perf.rgfa.${i}; \
-#         sudo chown "$USER:$USER" hg38.pggb.lcpan.t${t}.log; \
-#     done; \
-#     sudo chown "$USER:$USER" hg38.pggb.lcpan.t${t}.perf.rgfa; \
-#     /bin/time -v bash ../lcpan-merge.sh hg38.pggb.lcpan.t${t}.perf.log >> hg38.pggb.lcpan.t${t}.perf.out 2>&1; \
-# done
-# rm -f *.gfa
-#
-# cd ..
-#
-# mv lcpan-vg-perf lcpan.vg

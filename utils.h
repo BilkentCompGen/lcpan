@@ -33,6 +33,52 @@ int binary_search(uint64_t *arr, uint64_t size, uint64_t key);
 void quicksort(uint64_t *arr, int low, int high);
 
 /**
+ * @brief Opens a file in read mode ("r").
+ *
+ * This function attempts to open the given file for reading.
+ * If the file cannot be opened, an error message is printed to stderr
+ * and the program exits with EXIT_FAILURE.
+ *
+ * @param file Pointer to a FILE* that will store the opened file handle.
+ * @param filename Path to the file to open.
+ */
+void open_file_r(FILE **file, const char *filename);
+
+/**
+ * @brief Opens a file in write mode ("w").
+ *
+ * This function attempts to open the given file for writing.
+ * If the file cannot be opened, an error message is printed to stderr
+ * and the program exits with EXIT_FAILURE.
+ *
+ * @param file Pointer to a FILE* that will store the opened file handle.
+ * @param filename Path to the file to open.
+ */
+void open_file_w(FILE **file, const char *filename);
+
+/**
+ * @brief Creates and opens output files (segment + link) and writes initial headers/logs.
+ *
+ * This function creates output file names based on the input GFA path:
+ *   - "<gfa_path>.s.0" for segment output
+ *   - "<gfa_path>.l.0" for link output
+ *
+ * It opens both files in write mode and writes the GFA header line
+ * into the segment file.
+ *
+ * It also creates a log file:
+ *   - "lcpan.log" if args->prefix is NULL
+ *   - "<prefix>.log" otherwise
+ *
+ * The log file stores basic run information (tool name, gfa path, thread number).
+ *
+ * @param args Pointer to the program arguments/options struct.
+ * @param out_segment Output pointer where the opened segment file handle will be stored.
+ * @param out_link Output pointer where the opened link file handle will be stored.
+ */
+void open_files(struct opt_arg *args, FILE **out_segment, FILE **out_link);
+
+/**
  * Prints three sequences as single segment in GFA or rGFA format.
  *
  * @param id       Sequence identifier.

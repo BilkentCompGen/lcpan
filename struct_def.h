@@ -6,6 +6,7 @@
 #include <pthread.h>
 
 #define THREAD_POOL_FACTOR 2
+#define VG_BUCKET_BATCH 1024
 
 typedef enum {
     VG,
@@ -103,12 +104,24 @@ typedef struct {
 } vg_core_bucket_t;
 
 typedef struct {
-    vg_core_bucket_t **items;   /** Queue to data of the variations to be processed. */
+    vg_core_bucket_t *items[VG_BUCKET_BATCH];
+    int count;
+} vg_bucket_batch_t;
+
+typedef struct {
+    vg_bucket_batch_t **batch;  /** Queue to data of the variations to be processed. */
     int size;                   /** The size of the queue. */
     int capacity;               /** Capacity of the queue. */
     int front;                  /** The index for the pushing point. */
     int rear;                   /** The index for the popping point. */
 } vg_work_queue_t;
+
+typedef struct {
+    pthread_mutex_t *mutex;
+    pthread_cond_t  *cond_not_full;
+    pthread_cond_t  *cond_not_empty;
+    int             *exit_signal;
+} vg_queue_sync_t;
 
 struct t_arg {
     uint64_t core_id_index;
@@ -124,11 +137,8 @@ struct t_arg {
     FILE *out1;
     FILE *out2;
     void *queue;
-    pthread_mutex_t *queue_mutex;
+    vg_queue_sync_t *sync;
     pthread_mutex_t *out_log_mutex;
-    pthread_cond_t *cond_not_full;
-    pthread_cond_t *cond_not_empty;
-    int *exit_signal;
 };
 
 #endif

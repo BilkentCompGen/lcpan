@@ -1,6 +1,6 @@
 #include "fa_parser.h"
 
-uint64_t MurmurHash3_32(const void *key, int len) {
+static inline uint64_t MurmurHash3_32(const void *key, int len) {
     const uint8_t *data = (const uint8_t *)key;
     const int nblocks = len / 4;
 
@@ -77,7 +77,7 @@ void free_ref_seq(struct ref_seq *seqs) {
 	}
 }
 
-void vgx_process_chrom(char *sequence, uint64_t seq_size, int lcp_level, int skip_masked, struct chr *chrom, uint64_t *core_id_index) {
+void vgx_process_chrom(char *sequence, uint64_t seq_size, int lcp_level, int skip_masked, struct chr *chrom, uint64_t *core_id_index, int thread_number) {
     uint64_t id = *core_id_index;
 
     uint64_t estimated_core_size = (uint64_t)(seq_size / pow(1.5, lcp_level));
@@ -137,7 +137,7 @@ void vgx_process_chrom(char *sequence, uint64_t seq_size, int lcp_level, int ski
 
         struct lps str;
         init_lps_offset(&str, sequence+index, end-index, index);
-        lps_deepen(&str, lcp_level);
+        lps_deepen_parallel(&str, lcp_level, thread_number);
 
         if (str.size) {
             if (str.cores[0].start != index) {
@@ -333,7 +333,7 @@ void read_fasta(struct opt_arg *args, struct ref_seq *seqs) {
         if (line[0] == '>') {
             if (sequence_size != 0) {
                 if (args->program == VG || args->program == VGX) {
-                    vgx_process_chrom(seqs->chrs[index].seq, sequence_size, args->lcp_level, args->skip_masked, &(seqs->chrs[index]), &(args->core_id_index));
+                    vgx_process_chrom(seqs->chrs[index].seq, sequence_size, args->lcp_level, args->skip_masked, &(seqs->chrs[index]), &(args->core_id_index), args->thread_number);
                 } else if (args->program == LDBG) {
                     ldbg_process_chrom(seqs->chrs[index].seq, sequence_size, args->lcp_level, &(seqs->chrs[index]));
                 }
@@ -349,7 +349,7 @@ void read_fasta(struct opt_arg *args, struct ref_seq *seqs) {
 
     if (sequence_size != 0) {
         if (args->program == VG || args->program == VGX) {
-            vgx_process_chrom(seqs->chrs[index].seq, sequence_size, args->lcp_level, args->skip_masked, &(seqs->chrs[index]), &(args->core_id_index));
+            vgx_process_chrom(seqs->chrs[index].seq, sequence_size, args->lcp_level, args->skip_masked, &(seqs->chrs[index]), &(args->core_id_index), args->thread_number);
         } else if (args->program == LDBG) {
             ldbg_process_chrom(seqs->chrs[index].seq, sequence_size, args->lcp_level, &(seqs->chrs[index]));
         }

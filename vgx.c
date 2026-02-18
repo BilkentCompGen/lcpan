@@ -8,32 +8,32 @@ void line_queue_init(struct line_queue *queue, int capacity) {
     queue->rear = 0;
 }
 
-void line_queue_push(struct line_queue *queue, char *line, pthread_mutex_t *queue_mutex, pthread_cond_t *cond_not_full, pthread_cond_t *cond_not_empty) {
-    pthread_mutex_lock(queue_mutex);
+void line_queue_push(struct line_queue *queue, char *line, vg_queue_sync_t *sync) {
+    pthread_mutex_lock(sync->mutex);
     while (queue->size == queue->capacity) {
-        pthread_cond_wait(cond_not_full, queue_mutex);
+        pthread_cond_wait(sync->cond_not_full, sync->mutex);
     }
     queue->lines[queue->rear] = line;
     queue->rear = (queue->rear + 1) % queue->capacity;
     queue->size++;
-    pthread_cond_signal(cond_not_empty);
-    pthread_mutex_unlock(queue_mutex);
+    pthread_cond_signal(sync->cond_not_empty);
+    pthread_mutex_unlock(sync->mutex);
 }
 
-char *line_queue_pop(struct line_queue *queue, pthread_mutex_t *queue_mutex, pthread_cond_t *cond_not_full, pthread_cond_t *cond_not_empty, int *exit_signal) {
-    pthread_mutex_lock(queue_mutex);
-    while (queue->size == 0 && *(exit_signal) == 0) {
-        pthread_cond_wait(cond_not_empty, queue_mutex);
+char *line_queue_pop(struct line_queue *queue, vg_queue_sync_t *sync) {
+    pthread_mutex_lock(sync->mutex);
+    while (queue->size == 0 && *(sync->exit_signal) == 0) {
+        pthread_cond_wait(sync->cond_not_empty, sync->mutex);
     }
-    if (*(exit_signal) == 1) {
-        pthread_mutex_unlock(queue_mutex);
+    if (*(sync->exit_signal) == 1) {
+        pthread_mutex_unlock(sync->mutex);
         return NULL;
     }
     char *line = queue->lines[queue->front];
     queue->front = (queue->front + 1) % queue->capacity;
     queue->size--;
-    pthread_cond_signal(cond_not_full);
-    pthread_mutex_unlock(queue_mutex);
+    pthread_cond_signal(sync->cond_not_full);
+    pthread_mutex_unlock(sync->mutex);
     return line;
 }
 
@@ -180,7 +180,7 @@ void vgx_read_vcf_thd(void *args) {
 
     while (1) {
         // split the line by tab characters
-        char *line = line_queue_pop(queue, t_args->queue_mutex, t_args->cond_not_full, t_args->cond_not_empty, t_args->exit_signal);
+        char *line = line_queue_pop(queue, t_args->sync);
         if (line == NULL) {
             break;
         }
@@ -278,16 +278,22 @@ void vgx_read_vcf(struct opt_arg *args, struct ref_seq *seqs) {
     fprintf(out_log, "%d\n", args->thread_number);
 
     struct t_arg *t_args = (struct t_arg*)malloc(args->thread_number * sizeof(struct t_arg));
-    pthread_mutex_t queue_mutex = PTHREAD_MUTEX_INITIALIZER;
-    pthread_mutex_t out_log_mutex = PTHREAD_MUTEX_INITIALIZER;
-    pthread_cond_t cond_not_full = PTHREAD_COND_INITIALIZER;
+    pthread_mutex_t queue_mutex   = PTHREAD_MUTEX_INITIALIZER;
+    pthread_cond_t cond_not_full  = PTHREAD_COND_INITIALIZER;
     pthread_cond_t cond_not_empty = PTHREAD_COND_INITIALIZER;
-    int exit_signal = 0;
-
+    pthread_mutex_t out_log_mutex = PTHREAD_MUTEX_INITIALIZER;
     pthread_mutex_init(&queue_mutex, NULL);
-    pthread_mutex_init(&out_log_mutex, NULL);
     pthread_cond_init(&cond_not_full, NULL);
     pthread_cond_init(&cond_not_empty, NULL);
+    pthread_mutex_init(&out_log_mutex, NULL);
+    int exit_signal = 0;
+
+    vg_queue_sync_t sync = {
+        .mutex = &queue_mutex,
+        .cond_not_full = &cond_not_full,
+        .cond_not_empty = &cond_not_empty,
+        .exit_signal = &exit_signal
+    };
 
     struct line_queue queue;
     line_queue_init(&queue, args->tload_factor * args->thread_number);
@@ -313,11 +319,8 @@ void vgx_read_vcf(struct opt_arg *args, struct ref_seq *seqs) {
         t_args[i].out1 = out_thd;
         t_args[i].out2 = out_log;
         t_args[i].queue = (void *)&(queue);
-        t_args[i].queue_mutex = &queue_mutex;
+        t_args[i].sync = &sync;
         t_args[i].out_log_mutex = &out_log_mutex;
-        t_args[i].cond_not_full = &cond_not_full;
-        t_args[i].cond_not_empty = &cond_not_empty;
-        t_args[i].exit_signal = &exit_signal;
     }
 
     struct tpool *tm;
@@ -374,25 +377,24 @@ void vgx_read_vcf(struct opt_arg *args, struct ref_seq *seqs) {
             fprintf(out_log, "VCF: Memory allocation failed.\n");
             continue;
         }
-        line_queue_push(&queue, queue_line, &queue_mutex, &cond_not_full, &cond_not_empty);
+        line_queue_push(&queue, queue_line, &sync);
     }
 
     fclose(file);
 
-    pthread_mutex_lock(&queue_mutex);
+    pthread_mutex_lock(sync.mutex);
     while (queue.size > 0) { 
-        pthread_cond_wait(&cond_not_full, &queue_mutex);
+        pthread_cond_wait(sync.cond_not_full, sync.mutex);
     }
-    pthread_mutex_unlock(&queue_mutex);
+    pthread_mutex_unlock(sync.mutex);
 
     exit_signal = 1;
-    pthread_cond_broadcast(&cond_not_empty);
+    pthread_cond_broadcast(sync.cond_not_empty);
     tpool_wait(tm);
     tpool_destroy(tm);
-    pthread_mutex_destroy(&queue_mutex);
-    pthread_mutex_destroy(&out_log_mutex);
-    pthread_cond_destroy(&cond_not_full);
-    pthread_cond_destroy(&cond_not_empty);
+    pthread_mutex_destroy(sync.mutex);
+    pthread_cond_destroy(sync.cond_not_full);
+    pthread_cond_destroy(sync.cond_not_empty);
 
     for (int i=0; i<args->thread_number; i++) {
         args->failed_var_count += t_args[i].failed_var_count;

@@ -14,34 +14,22 @@ THREAD_FLAGS ?= -pthread
 LCPTOOLS_CXXFLAGS := -I$(CURRENT_DIR)/lcptools/include
 LCPTOOLS_LDFLAGS := -L$(CURRENT_DIR)/lcptools/lib -llcptools -Wl,-rpath,$(CURRENT_DIR)/lcptools/lib -lz
 
-# htslib
-HTSLIB_CXXFLAGS := -I$(CURRENT_DIR)/htslib/include
-HTSLIB_LDFLAGS := -L$(CURRENT_DIR)/htslib/lib -lhts -Wl,-rpath,$(CURRENT_DIR)/htslib/lib
-
 $(TARGET): $(OBJS)
-	$(CC) $(CFLAGS) $(PROF_FLAGS) $(LCPTOOLS_CXXFLAGS) $(HTSLIB_CXXFLAGS) -o $@ $^ $(LCPTOOLS_LDFLAGS) $(HTSLIB_LDFLAGS) -lm $(THREAD_FLAGS)
+	$(CC) $(CFLAGS) $(PROF_FLAGS) $(LCPTOOLS_CXXFLAGS) -o $@ $^ $(LCPTOOLS_LDFLAGS) -lm $(THREAD_FLAGS)
 	@mkdir -p bin
 	mv $(TARGET) bin
 	rm *.o
 
 %.o: %.c
-	$(CC) $(CFLAGS) $(PROF_FLAGS) $(LCPTOOLS_CXXFLAGS) $(HTSLIB_CXXFLAGS) -c $< -o $@ $(THREAD_FLAGS)
+	$(CC) $(CFLAGS) $(PROF_FLAGS) $(LCPTOOLS_CXXFLAGS) -c $< -o $@ $(THREAD_FLAGS)
 
-install: install-lcptools install-htslib
+install: install-lcptools
 	@chmod +x lcpan-merge.sh
 
 install-lcptools:
 	@echo "Installing lcptools"
 	cd lcptools && \
 	make install PREFIX=.
-
-install-htslib:
-	@echo "Installing htslib"
-	cd htslib && \
-	autoreconf -i && \
-	./configure && \
-	make && \
-	make prefix=./htslib install
 
 clean:
 	rm -f $(TARGET) $(OBJS)
@@ -50,4 +38,4 @@ profile: PROF_FLAGS = -g -fno-omit-frame-pointer -fno-optimize-sibling-calls
 profile: clean $(TARGET)
 	rm *.o
 
-.PHONY: profile install install-lcptools install-htslib clean $(TARGET)
+.PHONY: profile install install-lcptools clean $(TARGET)

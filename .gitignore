@@ -6,6 +6,15 @@ tests/
 *.o/
 lcpan
 bin/*
+misc_utils/alignment
 misc_utils/vgx-data-prep.sh
 misc_utils/vgx-profiling-pipeline.md
+misc_utils/vg-alignment.sh
+misc_utils/vg-tool-construction.sh
+misc_utils/vg-s2g.sh
+misc_utils/vg-pipeline.sh
+misc_utils/lammiq*
+misc_utils/*.slurm
+misc_utils/vg-pipeline-config.sh
+misc_utils/slurm.sh
 results

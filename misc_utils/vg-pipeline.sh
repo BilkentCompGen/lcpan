@@ -43,31 +43,40 @@
 ## NOTE: samtools is required (system wide installed) for gaf to sam converion
 
 # MODES
-: "${LOCAL_TMP:=true}"
-: "${LCPAN_RGFA:=true}"
-: "${LCPAN_GFA:=true}"
-: "${LCPAN_THD:=true}"
-: "${VG_THD:=true}"
-: "${ALIGN_LIMITED:=true}"
-: "${ALIGN:=true}"
+LOCAL_TMP=true
+LCPAN_RGFA=true
+LCPAN_GFA=true
+LCPAN_THD=true
+VG_THD=true
+VG_GNU_THD=true
+ALIGN_LIMITED=true
+ALIGN=true
 
 # Directories and files
 # Program will copy the files to the 
-AKHAL_DIR=
-GRAPHALIGNER_DIR=
-LCPAN_DIR=
-LCPANMERGE_DIR=
+AKHAL={akhal:-}
+GRAPHALIGNER={GraphAligner:-}
+LCPAN={lcpan:-}
+LCPANMERGE={lcpan-merge.sh:-}
 
-FASTA=
-FAI=
-HPRC=
-HPRC_GZ=
-HPRC_GZ_TBI=
+FASTA={human_v38.fa:-}
+FAI={human_v38.fa.fai:-}
+HPRC={hprc-v1.0-pggb.grch38.1-22+X.vcf:-}
+HPRC_GZ={hprc-v1.0-pggb.grch38.1-22+X.renamed.vcf.gz:-}
+HPRC_GZ_TBI={hprc-v1.0-pggb.grch38.1-22+X.renamed.vcf.gz.tbi:-}
 
-HG002_VCF=
-PACBIO_FA=
-PACBIO_SUB_FA=
-ONT_SUB_FA=
+HG002_VCF={HG002_GRCh38.pbsv.vcf.gz:-}
+PACBIO_FA={hg002v1.0.1_hifi_revio_pbmay24.fa:-}
+PACBIO_SUB_FA={hg002v1.0.1_hifi_revio_pbmay24.chr1_10_22.subsampled.fa:-}
+ONT_SUB_FA={hg002v1.0_ont_r10_ul_dorado.chr1_10_22.subsampled.fa:-}
+
+CONFIG_FILE="vg-pipeline-config.sh"
+
+if [[ -n "$CONFIG_FILE" && -f "$CONFIG_FILE" ]]; then
+    echo "Loading config from $CONFIG_FILE"
+    source "$CONFIG_FILE"
+fi
+
 
 if [ "$LOCAL_TMP" = "true" ]; then
     cd /tmp
@@ -106,25 +115,23 @@ if [ "$LOCAL_TMP" = "true" ]; then
         cp $HPRC .
     fi
     HPRC="/tmp/lcpan/$FILE_HPRC"
-    if [ ! -f $FILE_HPRC_GZ ]; then
+    if [[ ("$VG_THD" = "true" || "$VG_GNU_THD" = "true") && ! -f $FILE_HPRC_GZ ]]; then
         cp $HPRC_GZ .
     fi
     HPRC_GZ="/tmp/lcpan/$FILE_HPRC_GZ"
-    if [ ! -f $FILE_HPRC_GZ_TBI ]; then
+    if [[ ("$VG_THD" = "true" || "$VG_GNU_THD" = "true") && ! -f $FILE_HPRC_GZ_TBI ]]; then
         cp $HPRC_GZ_TBI .
     fi
     HPRC_GZ_TBI="/tmp/lcpan/$FILE_HPRC_GZ_TBI"
-    if [ ! -f $FILE_HG002_VCF ]; then
+    if [[ ("$ALIGN_LIMITED" = "true" || "$ALIGN" = "true") && ! -f $FILE_HG002_VCF ]]; then
         cp $HG002_VCF .
         cp "$HG002_VCF.tbi" .
     fi
     HG002_VCF="/tmp/lcpan/$FILE_HG002_VCF"
 
-    mkdir -p reads
-
-    cd reads
-
     if [ "$ALIGN_LIMITED" = "true" ]; then
+        mkdir -p reads
+        cd reads
         if [ ! -f $FILE_PACBIO_SUB_FA ]; then
             cp $PACBIO_SUB_FA .
         fi
@@ -133,15 +140,18 @@ if [ "$LOCAL_TMP" = "true" ]; then
             cp $ONT_SUB_FA .
         fi
         ONT_SUB_FA="/tmp/lcpan/reads/$FILE_ONT_SUB_FA"
+        cd ..
     fi
     if [ "$ALIGN" = "true" ]; then
+        mkdir -p reads
+        cd reads
         if [ ! -f $FILE_PACBIO_FA ]; then
             cp $PACBIO_FA .
         fi
         PACBIO_FA="/tmp/lcpan/reads/$FILE_PACBIO_FA"
+        cd ..
     fi
 
-    cd ..
 fi
 
 ### ---------------------------------------------------------------------------------
@@ -224,6 +234,27 @@ parse_2files() {
     echo "" >> $out
 }
 
+summarize_stats() {
+    local in="$1"
+    local out="$2"
+
+    awk -F': ' '
+        $1=="Execution time (s)"   {exec+=$2; ne++}
+        $1=="Merge time (s)"       {merge+=$2; nm++}
+        $1=="Total runtime (s)"    {tot+=$2; nt++}
+        $1=="Max RAM usage (GB)"   {ram+=$2; nr++}
+        $1=="File size (GB)"       {fs+=$2; nf++}
+        END {
+            print "Averages across runs:"
+            if (ne) printf "Avg Execution time (s): %.6f\n", exec/ne
+            if (nm) printf "Avg Merge time (s): %.6f\n", merge/nm
+            if (nt) printf "Avg Total runtime (s): %.6f\n", tot/nt
+            if (nr) printf "Avg Max RAM usage (GB): %.6f\n", ram/nr
+            if (nf) printf "Avg File size (GB): %.6f\n", fs/nf
+        }
+    ' "$in" > "$out"
+}
+
 fa_stats() {
     local fasta=$1
     local total_len=$2
@@ -255,7 +286,7 @@ graphaligner_run() {
     local hg002=$5
     local out="align.$hg002.$reads.$graph.out"
 
-    /bin/time -v ${GRAPHALIGNER_DIR}/GraphAligner \
+    /bin/time -v ${GRAPHALIGNER} \
         -g "$hg38.pggb.$graph.gfa" \
         -f "$fa" \
         -a "$hg002.$reads.$graph.gaf" \
@@ -273,14 +304,14 @@ pbsv_run() {
     local hg002=$5
     local out="pbsv.$hg002.$reads.$graph.out"
 
-    /bin/time -v ${AKHAL_DIR}/akhal gaf2sam \
+    /bin/time -v ${AKHAL} gaf2sam \
         "$hg38.pggb.$graph.gfa" \
         "$hg002.$reads.$graph.gaf"  \
         "$fa" \
         "$hg002.$reads.$graph.sam" \
         --simple > "$out" 2>&1
     
-    /bin/time -v ${AKHAL_DIR}/akhal sampoke \
+    /bin/time -v ${AKHAL} sampoke \
         "$hg38.fa" \
         "$hg002.$reads.$graph.sam" \
         "$hg002.$reads.$graph.qual.sam" >> "$out" 2>&1
@@ -329,16 +360,16 @@ if [ "$LCPAN_RGFA" = "true" ]; then
     cd lcpan-levels-nov-rgfa
 
     for l in 4 5 6 7; do \
-        /bin/time -v ${LCPAN_DIR}/lcpan -vg \
+        /bin/time -v ${LCPAN} -vg \
             -r "$FASTA" \
             -v "$HPRC" \
             -p hg38.pggb.lcpan.l${l} \
             -l ${l} \
             --verbose > hg38.pggb.lcpan.l${l}.out 2>&1; \
-        /bin/time -v bash ${LCPANMERGE_DIR}/lcpan-merge.sh hg38.pggb.lcpan.l${l}.log >> hg38.pggb.lcpan.l${l}.out 2>&1; \
+        /bin/time -v bash ${LCPANMERGE} hg38.pggb.lcpan.l${l}.log >> hg38.pggb.lcpan.l${l}.out 2>&1; \
     done
-    parallel '/bin/time -v ${AKHAL_DIR}/akhal parse hg38.pggb.lcpan.l{}.rgfa >> hg38.pggb.lcpan.l{}.out 2>&1' ::: 4 5 6 7
-    parallel '${AKHAL_DIR}/akhal stats hg38.pggb.lcpan.l{}.rgfa >> hg38.pggb.lcpan.l{}.out 2>&1' ::: 4 5 6 7
+    parallel --env AKHAL "/bin/time -v ${AKHAL} parse hg38.pggb.lcpan.l{}.rgfa >> hg38.pggb.lcpan.l{}.out 2>&1" ::: 4 5 6 7
+    parallel --env AKHAL "${AKHAL} stats hg38.pggb.lcpan.l{}.rgfa >> hg38.pggb.lcpan.l{}.out 2>&1" ::: 4 5 6 7
 
     for l in 4 5 6 7; do
         parse_2files "hg38.pggb.lcpan.l${l}.rgfa" "hg38.pggb.lcpan.l${l}.out" "stats.txt"
@@ -363,17 +394,17 @@ if [ "$LCPAN_GFA" = "true" ]; then
     cd lcpan-levels-nov-gfa
 
     for l in 4 5 6 7; do \
-        /bin/time -v ${LCPAN_DIR}/lcpan -vg \
+        /bin/time -v ${LCPAN} -vg \
             -r "$FASTA" \
             -v "$HPRC" \
             -p hg38.pggb.lcpan.l${l} \
             -l ${l} \
             --verbose \
             --gfa > hg38.pggb.lcpan.l${l}.out 2>&1; \
-        /bin/time -v bash ${LCPANMERGE_DIR}/lcpan-merge.sh hg38.pggb.lcpan.l${l}.log >> hg38.pggb.lcpan.l${l}.out 2>&1; \
+        /bin/time -v bash ${LCPANMERGE} hg38.pggb.lcpan.l${l}.log >> hg38.pggb.lcpan.l${l}.out 2>&1; \
     done
-    parallel '/bin/time -v ${AKHAL_DIR}/akhal parse hg38.pggb.lcpan.l{}.gfa >> hg38.pggb.lcpan.l{}.out 2>&1' ::: 4 5 6 7
-    parallel '${AKHAL_DIR}/akhal stats hg38.pggb.lcpan.l{}.gfa >> hg38.pggb.lcpan.l{}.out 2>&1' ::: 4 5 6 7
+    parallel --env AKHAL "/bin/time -v ${AKHAL} parse hg38.pggb.lcpan.l{}.gfa >> hg38.pggb.lcpan.l{}.out 2>&1" ::: 4 5 6 7
+    parallel --env AKHAL "${AKHAL} stats hg38.pggb.lcpan.l{}.gfa >> hg38.pggb.lcpan.l{}.out 2>&1" ::: 4 5 6 7
 
     for l in 4 5 6 7; do
         parse_2files "hg38.pggb.lcpan.l${l}.gfa" "hg38.pggb.lcpan.l${l}.out" "stats.txt"
@@ -396,28 +427,39 @@ if [ "$LCPAN_THD" = "true" ]; then
 
     mkdir -p lcpan-threads
     cd lcpan-threads
+    
+    REPS=5
+    THREADS=(1 2 4 8 16)
 
-    for t in 1 2 4 8 16; do \
-        /bin/time -v ${LCPAN_DIR}/lcpan -vg \
-            -r "$FASTA" \
-            -v "$HPRC" \
-            -p hg38.pggb.lcpan.t${t} \
-            -t $t \
-            --gfa \
-            --verbose > hg38.pggb.lcpan.t${t}.out 2>&1; \
-        /bin/time -v bash ${LCPANMERGE_DIR}/lcpan-merge.sh hg38.pggb.lcpan.t${t}.log >> hg38.pggb.lcpan.t${t}.out 2>&1; \
+    for t in "${THREADS[@]}"; do
+        mkdir -p "t${t}"
+        cd "t${t}" || exit 1
+
+        for r in $(seq 1 "$REPS"); do
+            out="hg38.pggb.lcpan.t${t}.r${r}.out"
+
+            /bin/time -v "${LCPAN}" -vg \
+                -r "$FASTA" \
+                -v "$HPRC" \
+                -p "hg38.pggb.lcpan.t${t}.r${r}" \
+                -t "$t" \
+                --gfa \
+                --verbose > "$out" 2>&1
+
+            /bin/time -v bash "${LCPANMERGE}" "hg38.pggb.lcpan.t${t}.r${r}.log" >> "$out" 2>&1
+            /bin/time -v "${AKHAL}" parse "hg38.pggb.lcpan.t${t}.r${r}.gfa" >> "$out" 2>&1
+
+            parse_2files "hg38.pggb.lcpan.t${t}.r${r}.gfa" "$out" "stats.t${t}.txt"
+        done
+
+        summarize_stats "stats.t${t}.txt" "summary.t${t}.txt"
+
+        rm -f *.log *.gfa
+        cd .. || exit 1
+
     done
-    export AKHAL_DIR
-    parallel '/bin/time -v ${AKHAL_DIR}/akhal parse hg38.pggb.lcpan.t{}.gfa >> hg38.pggb.lcpan.t{}.out 2>&1' ::: 1 2 4 8 16
 
-    for t in 1 2 4 8 16; do
-        parse_2files "hg38.pggb.lcpan.t${t}.gfa" "hg38.pggb.lcpan.t${t}.out" "stats.txt"
-    done
-
-    rm -f *.log
-    rm -f *.gfa
-
-    cd ..
+    cd .. || exit 1
 fi
 
 ### ---------------------------------------------------------------------------------
@@ -466,10 +508,75 @@ if [ "$VG_THD" = "true" ]; then
         if [ "$t" -eq 1 ]; then
             /bin/time -v vg convert -f hg38.pggb.vg > hg38.pggb.vg.gfa 2>> "hg38.pggb.vg.t$t.out"
             parse_2files "hg38.pggb.vg.gfa" "hg38.pggb.vg.t$t.out" "stats.txt"
-            ${AKHAL_DIR}/akhal stats "hg38.pggb.vg.gfa" >> "hg38.pggb.vg.t$t.out" 2>&1
+            ${AKHAL} stats "hg38.pggb.vg.gfa" >> "hg38.pggb.vg.t$t.out" 2>&1
             rm -f hg38.pggb.vg.gfa
         else
             parse_2files "hg38.pggb.vg" "hg38.pggb.vg.t$t.out" "stats.txt"
+        fi
+
+        rm -f hg38.pggb.vg
+    done
+
+    rm -f hg38.chunks.txt
+
+    cd ..
+fi
+
+### ---------------------------------------------------------------------------------
+### ---------------------------------------------------------------------------------
+### Thread scaling analyses based on VG-GNU tools
+### ---------------------------------------------------------------------------------
+### ---------------------------------------------------------------------------------
+
+if [ "$VG_GNU_THD" = "true" ]; then
+    echo "Experiment on different thread numbers started (vg-gnu)..."
+
+    mkdir -p vg-threads-gnu
+    cd vg-threads-gnu
+
+    CHUNK_SIZE=10000000
+    rm -f hg38.chunks.txt
+
+    # Construct chunks
+    while read -r chr chr_length _; do \
+        for ((i = 0; i * CHUNK_SIZE < chr_length; i++)); do \
+            start=$((i * CHUNK_SIZE + 1)); \
+            end=$(((i + 1) * CHUNK_SIZE)); \
+            [[ $end -gt $chr_length ]] && end=$chr_length; \
+            echo "${chr}:${start}-${end}" >> hg38.chunks.txt; \
+        done; \
+    done < "$FAI"
+
+    for t in 1 2 4 8 16; do
+        /bin/time -v bash -c '
+            JOBS="$1"
+            FASTA="$2"
+            HPRC="$3"
+
+            parallel -j "$JOBS" \
+                "vg construct -r $FASTA -v $HPRC -f -R {} -t 1 > chunk.{#}.vg" \
+                :::: hg38.chunks.txt
+        ' _ "$t" "$FASTA" "$HPRC_GZ" > hg38.pggb.vg.2t$t.out 2>&1
+
+        /bin/time -v vg combine -p chunk.*.vg > hg38.pggb.vg 2>> "hg38.pggb.vg.2t$t.out"
+        rm -f chunk.*.vg
+
+        if [ "$t" -eq 1 ]; then
+            /bin/time -v vg convert -f hg38.pggb.vg > hg38.pggb.vg.t$t.gfa
+            parse_2files "$t" "VG" "hg38.pggb.vg" "hg38.pggb.vg.2t$t.out" "stats.txt"
+
+            file_b=$(stat --format="%s" "hg38.pggb.vg" 2>/dev/null)
+            file_gb=$(echo "scale=2; $file_b/(1024*1024*1024)" | bc -l)
+
+            echo "File size GFA (GB): $file1_gb" >> "stats.txt"
+            echo "" >> "stats.txt"
+
+            ${AKHAL} stats "hg38.pggb.vg.t$t.gfa" >> "hg38.pggb.vg.2t$t.out" 2>&1
+
+            rm -f "hg38.pggb.vg.t$t.gfa"
+        else
+            parse_2files "$t" "VG" "hg38.pggb.vg" "hg38.pggb.vg.2t$t.out" "stats.txt"
+            echo "" >> "stats.txt"
         fi
 
         rm -f hg38.pggb.vg
@@ -516,9 +623,9 @@ if [ "$ALIGN_LIMITED" = "true" ]; then
     ### Create variation graphs
     if [ ! -f "$PREFIX.pggb.lcpan.gfa" ]; then
         echo "LCPan graph construction for alignment started ..."
-        /bin/time -v ${LCPAN_DIR}/lcpan -vg -r "$PREFIX.fa" -v $SUB_HPRC -p "$PREFIX.pggb.lcpan" --gfa --verbose > "$PREFIX.pggb.lcpan.out" 2>&1
-        /bin/time -v bash ${LCPANMERGE_DIR}/lcpan-merge.sh "$PREFIX.pggb.lcpan.log" >> "$PREFIX.pggb.lcpan.out" 2>&1
-        ${AKHAL_DIR}/akhal stats "$PREFIX.pggb.lcpan.gfa" >> "$PREFIX.pggb.lcpan.out" 2>&1
+        /bin/time -v ${LCPAN} -vg -r "$PREFIX.fa" -v $SUB_HPRC -p "$PREFIX.pggb.lcpan" --gfa --verbose > "$PREFIX.pggb.lcpan.out" 2>&1
+        /bin/time -v bash ${LCPANMERGE} "$PREFIX.pggb.lcpan.log" >> "$PREFIX.pggb.lcpan.out" 2>&1
+        ${AKHAL} stats "$PREFIX.pggb.lcpan.gfa" >> "$PREFIX.pggb.lcpan.out" 2>&1
         rm -f $PREFIX.pggb.lcpan.log
     else
         echo "$PREFIX.pggb.lcpan.gfa already exists. skipping construction..."
@@ -528,7 +635,7 @@ if [ "$ALIGN_LIMITED" = "true" ]; then
         echo "VG graph construction for alignment started ..."
         /bin/time -v vg construct -r "$PREFIX.fa" -v $SUB_HPRC -m 64 -N -S > "$PREFIX.pggb.vg" 2> "$PREFIX.pggb.vg.out"
         /bin/time -v vg convert -f "$PREFIX.pggb.vg" > "$PREFIX.pggb.vg.gfa" 2>> "$PREFIX.pggb.vg.out"
-        ${AKHAL_DIR}/akhal stats "$PREFIX.pggb.vg.gfa" >> "$PREFIX.pggb.vg.out" 2>&1
+        ${AKHAL} stats "$PREFIX.pggb.vg.gfa" >> "$PREFIX.pggb.vg.out" 2>&1
         rm -f "$PREFIX.pggb.vg"
     else
         echo "$PREFIX.pggb.vg.gfa already exists. skipping construction..."
@@ -599,9 +706,9 @@ if [ "$ALIGN" = "true" ]; then
     ### Create variation graphs
     if [ ! -f "$PREFIX.pggb.lcpan.gfa" ]; then
         echo "LCPan graph construction for alignment started ..."
-        /bin/time -v ${LCPAN_DIR}/lcpan -vg -r $FASTA -v $HPRC -p "$PREFIX.pggb.lcpan" --gfa --verbose > "$PREFIX.pggb.lcpan.out" 2>&1
-        /bin/time -v bash ${LCPANMERGE_DIR}/lcpan-merge.sh "$PREFIX.pggb.lcpan.log" >> "$PREFIX.pggb.lcpan.out" 2>&1
-        ${AKHAL_DIR}/akhal stats "$PREFIX.pggb.lcpan.gfa" >> "$PREFIX.pggb.lcpan.out" 2>&1
+        /bin/time -v ${LCPAN} -vg -r $FASTA -v $HPRC -p "$PREFIX.pggb.lcpan" --gfa --verbose > "$PREFIX.pggb.lcpan.out" 2>&1
+        /bin/time -v bash ${LCPANMERGE} "$PREFIX.pggb.lcpan.log" >> "$PREFIX.pggb.lcpan.out" 2>&1
+        ${AKHAL} stats "$PREFIX.pggb.lcpan.gfa" >> "$PREFIX.pggb.lcpan.out" 2>&1
         rm -f $PREFIX.pggb.lcpan.log
     else
         echo "$PREFIX.pggb.lcpan.gfa already exists. skipping construction..."
@@ -611,7 +718,7 @@ if [ "$ALIGN" = "true" ]; then
         echo "VG graph construction for alignment started ..."
         /bin/time -v vg construct -r "$FASTA" -v $HPRC -m 64 -N -S > "$PREFIX.pggb.vg" 2> "$PREFIX.pggb.vg.out"
         /bin/time -v vg convert -f "$PREFIX.pggb.vg" > "$PREFIX.pggb.vg.gfa" 2>> "$PREFIX.pggb.vg.out"
-        ${AKHAL_DIR}/akhal stats "$PREFIX.pggb.vg.gfa" >> "$PREFIX.pggb.vg.out" 2>&1
+        ${AKHAL} stats "$PREFIX.pggb.vg.gfa" >> "$PREFIX.pggb.vg.out" 2>&1
         rm -f "$PREFIX.pggb.vg"
     else
         echo "$PREFIX.pggb.lcpan.gfa already exists. skipping construction..."
